@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { playAlertSound, getSoundTypeForAlert } from "@/lib/alertSounds";
 
 export type AlertType = 'price_target' | 'stop_loss' | 'margin_call';
 export type AlertDirection = 'above' | 'below';
@@ -110,8 +111,14 @@ export function useAlerts(currentPrice?: number) {
         if (shouldTrigger) {
           hasChanges = true;
           
-          // Send notifications
+          // 1. FIRST: Play sound
+          const soundType = getSoundTypeForAlert(alert.type);
+          playAlertSound(soundType);
+          
+          // 2. THEN: Browser notification
           sendBrowserNotification(alert);
+          
+          // 3. THEN: Toast in app
           toast.success(`🔔 ${alert.name}`, {
             description: getNotificationMessage(alert),
           });
