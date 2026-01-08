@@ -11,7 +11,8 @@ export function Card({ children, className, highlighted = false }: CardProps) {
     <div
       className={cn(
         "bg-card rounded-xl p-4 shadow-lg transition-all duration-300",
-        "hover:scale-[1.02] hover:shadow-xl",
+        "hover:scale-[1.02] hover:shadow-2xl hover:shadow-primary/10",
+        "animate-fade-in",
         highlighted && "border-2 border-primary shadow-primary/20",
         !highlighted && "border border-border",
         className

@@ -6,10 +6,12 @@ import { MainContent } from "@/components/trading/MainContent";
 import { Footer } from "@/components/trading/Footer";
 import { PortfolioInput } from "@/components/trading/PortfolioInput";
 import { usePowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
+import { useDebouncedValue } from "@/hooks/useDebounce";
 
 const Index = () => {
   const [portfolioValue, setPortfolioValue] = useState(15000);
-  const analysis = usePowerLawAnalysis(portfolioValue);
+  const debouncedPortfolioValue = useDebouncedValue(portfolioValue, 300);
+  const analysis = usePowerLawAnalysis(debouncedPortfolioValue);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -17,7 +19,7 @@ const Index = () => {
       <PortfolioInput value={portfolioValue} onChange={setPortfolioValue} />
       
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar - hidden on mobile */}
+        {/* Left Sidebar - hidden on mobile/tablet */}
         <div className="hidden lg:block">
           <LeftSidebar />
         </div>
@@ -25,7 +27,7 @@ const Index = () => {
         {/* Main Content */}
         <MainContent analysis={analysis} />
         
-        {/* Right Sidebar - hidden on mobile, shown on lg+ */}
+        {/* Right Sidebar - hidden on mobile/tablet, shown on xl+ */}
         <div className="hidden xl:block">
           <RightSidebar analysis={analysis} />
         </div>
