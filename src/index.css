@@ -62,6 +62,61 @@
     --sidebar-ring: 199 89% 48%;
   }
 
+  /* Light theme */
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 210 40% 98%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 199 89% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 20% 45%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 32% 85%;
+    --input: 214 32% 91%;
+    --ring: 199 89% 48%;
+
+    /* Semantic colors for trading - light mode */
+    --success: 142 71% 35%;
+    --success-foreground: 142 76% 15%;
+    --warning: 45 93% 40%;
+    --warning-foreground: 45 93% 15%;
+    --danger: 0 84% 50%;
+    --danger-foreground: 0 0% 100%;
+    --info: 217 91% 50%;
+    --info-foreground: 217 91% 15%;
+    --bitcoin: 25 95% 45%;
+    --bitcoin-foreground: 25 95% 15%;
+    --model: 217 91% 50%;
+    --today: 187 92% 40%;
+
+    /* Sidebar */
+    --sidebar-background: 210 40% 98%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 199 89% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 93%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 85%;
+    --sidebar-ring: 199 89% 48%;
+  }
+
   .dark {
     --background: 222 47% 11%;
     --foreground: 210 40% 96%;

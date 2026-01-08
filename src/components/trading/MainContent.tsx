@@ -9,9 +9,10 @@ import { PowerLawChart } from "./PowerLawChart";
 interface MainContentProps {
   analysis: PowerLawAnalysis;
   btcPrice: number;
+  interestRate?: number;
 }
 
-export function MainContent({ analysis, btcPrice }: MainContentProps) {
+export function MainContent({ analysis, btcPrice, interestRate = 5.37 }: MainContentProps) {
   const [estrategia, setEstrategia] = useState<Estrategia>(analysis.estrategiaRecomendada);
 
   // Auto-select recommended strategy when ratio changes significantly

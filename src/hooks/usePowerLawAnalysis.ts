@@ -85,7 +85,7 @@ export interface PowerLawAnalysis {
   posicionShort: PosicionShort;
 }
 
-export function usePowerLawAnalysis(portfolioValue: number, btcPrice: number): PowerLawAnalysis {
+export function usePowerLawAnalysis(portfolioValue: number, btcPrice: number, interestRate: number = 0.0537): PowerLawAnalysis {
   return useMemo(() => {
     // 1. Calculate days and years since genesis
     const currentDate = new Date();
@@ -206,7 +206,7 @@ export function usePowerLawAnalysis(portfolioValue: number, btcPrice: number): P
     }
 
     // 11. 6-month projections
-    const costoIntereses6m = prestamoUSD * (INTEREST_RATE / 2); // 6 months = half year
+    const costoIntereses6m = prestamoUSD * (interestRate / 2); // 6 months = half year
     const valorFuturoSiFairValue = exposicionTotal * precioModelo;
     const valorActual = exposicionTotal * btcPrice;
     const gananciaNeta = valorFuturoSiFairValue - valorActual - costoIntereses6m;
@@ -297,5 +297,5 @@ export function usePowerLawAnalysis(portfolioValue: number, btcPrice: number): P
       estrategiaRecomendada,
       posicionShort,
     };
-  }, [portfolioValue, btcPrice]);
+  }, [portfolioValue, btcPrice, interestRate]);
 }
