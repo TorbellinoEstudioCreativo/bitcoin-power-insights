@@ -1,15 +1,21 @@
-import { TrendingUp, Target, Percent, Bot } from "lucide-react";
+import { TrendingUp, Target, Percent, Bot, Wifi, WifiOff } from "lucide-react";
 import { Card } from "./Card";
 import { Badge } from "./Badge";
 import { InfoTooltip } from "./InfoTooltip";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { PowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
+import { BitcoinPriceData } from "@/hooks/useBitcoinPrice";
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface RightSidebarProps {
   analysis: PowerLawAnalysis;
+  priceData?: BitcoinPriceData;
+  isPriceError?: boolean;
+  dataUpdatedAt?: number;
 }
 
-export function RightSidebar({ analysis }: RightSidebarProps) {
+export function RightSidebar({ analysis, priceData, isPriceError, dataUpdatedAt }: RightSidebarProps) {
   return (
     <aside className="w-80 bg-background border-l border-border p-4 flex flex-col gap-4 overflow-y-auto">
       {/* Card 1: Precio Actual */}
@@ -17,14 +23,45 @@ export function RightSidebar({ analysis }: RightSidebarProps) {
         <div className="flex items-center gap-2 mb-3">
           <TrendingUp className="w-4 h-4 text-bitcoin" />
           <span className="text-sm font-medium text-muted-foreground">Precio Actual</span>
-          <InfoTooltip content="Precio actual de Bitcoin en USD (hardcoded para demo)" />
+          <InfoTooltip content="Precio spot de Bitcoin en USD obtenido en tiempo real de CoinGecko" />
+          {/* Live indicator */}
+          {priceData?.isLive ? (
+            <div className="flex items-center gap-1 ml-auto">
+              <Wifi className="w-3 h-3 text-success" />
+              <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 ml-auto">
+              <WifiOff className="w-3 h-3 text-muted-foreground" />
+            </div>
+          )}
         </div>
         <div className="text-3xl font-bold text-foreground">
           <AnimatedNumber value={analysis.btcPrice} prefix="$" />
         </div>
-        <div className="text-xs text-muted-foreground mt-1">
-          Bitcoin (BTC)
+        
+        {/* 24h change */}
+        {priceData?.change24h !== null && priceData?.change24h !== undefined && (
+          <div className={`text-sm font-medium mt-1 ${priceData.change24h >= 0 ? 'text-success' : 'text-danger'}`}>
+            {priceData.change24h >= 0 ? '▲' : '▼'} {Math.abs(priceData.change24h).toFixed(2)}% (24h)
+          </div>
+        )}
+        
+        <div className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
+          <span>Bitcoin (BTC)</span>
+          {dataUpdatedAt && (
+            <span className="text-[10px]">
+              {formatDistanceToNow(dataUpdatedAt, { addSuffix: true, locale: es })}
+            </span>
+          )}
         </div>
+        
+        {/* Error indicator */}
+        {isPriceError && (
+          <div className="mt-2 text-xs text-warning bg-warning/10 px-2 py-1 rounded">
+            ⚠️ Usando último valor conocido
+          </div>
+        )}
       </Card>
 
       {/* Card 2: Fair Value (Modelo) */}

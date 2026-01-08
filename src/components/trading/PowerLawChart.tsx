@@ -11,10 +11,11 @@ import {
   ReferenceLine,
 } from "recharts";
 import { PowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
-import { GENESIS_DATE, BTC_PRICE } from "@/lib/constants";
+import { GENESIS_DATE } from "@/lib/constants";
 
 interface PowerLawChartProps {
   analysis: PowerLawAnalysis;
+  btcPrice: number;
 }
 
 type Timeframe = '15d' | '30d' | '3m' | '1y' | 'all';
@@ -41,7 +42,7 @@ const historicalPrices: Record<number, number> = {
   2022: 28000, 2023: 37000, 2024: 72000, 2025: 93000
 };
 
-export function PowerLawChart({ analysis }: PowerLawChartProps) {
+export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>('all');
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
@@ -66,7 +67,7 @@ export function PowerLawChart({ analysis }: PowerLawChartProps) {
           let precioReal: number | null = null;
           if (!isFuture) {
             if (isToday) {
-              precioReal = BTC_PRICE;
+              precioReal = btcPrice;
             } else if (historicalPrices[year]) {
               // Add variation within the year
               const quarterVariation = (quarter - 1.5) * 0.15;
@@ -100,12 +101,12 @@ export function PowerLawChart({ analysis }: PowerLawChartProps) {
         const modelo = calcularPrecioPowerLaw(yearsSince);
         
         const isToday = date.toDateString() === currentDate.toDateString();
-        const ratioActual = BTC_PRICE / analysis.precioModelo;
+        const ratioActual = btcPrice / analysis.precioModelo;
         
         // Simulate price variation around current ratio
         const variation = (Math.random() - 0.5) * 0.08;
         const precioReal = isToday 
-          ? BTC_PRICE 
+          ? btcPrice 
           : modelo * ratioActual * (1 + variation);
         
         data.push({
@@ -132,11 +133,11 @@ export function PowerLawChart({ analysis }: PowerLawChartProps) {
         const modelo = calcularPrecioPowerLaw(yearsSince);
         
         const isToday = i === weeks;
-        const ratioActual = BTC_PRICE / analysis.precioModelo;
+        const ratioActual = btcPrice / analysis.precioModelo;
         
         const variation = (Math.random() - 0.5) * 0.1;
         const precioReal = isToday 
-          ? BTC_PRICE 
+          ? btcPrice 
           : modelo * ratioActual * (1 + variation);
         
         data.push({
@@ -159,11 +160,11 @@ export function PowerLawChart({ analysis }: PowerLawChartProps) {
         const modelo = calcularPrecioPowerLaw(yearsSince);
         
         const isToday = i === 0;
-        const ratioActual = BTC_PRICE / analysis.precioModelo;
+        const ratioActual = btcPrice / analysis.precioModelo;
         
         const variation = (Math.random() - 0.5) * 0.12;
         const precioReal = isToday 
-          ? BTC_PRICE 
+          ? btcPrice 
           : modelo * ratioActual * (1 + variation);
         
         data.push({
@@ -180,7 +181,7 @@ export function PowerLawChart({ analysis }: PowerLawChartProps) {
     return data;
   };
 
-  const chartData = useMemo(() => generateChartData(timeframe), [timeframe, analysis.precioModelo]);
+  const chartData = useMemo(() => generateChartData(timeframe), [timeframe, analysis.precioModelo, btcPrice]);
 
   const timeframeLabels: Record<Timeframe, string> = {
     '15d': '15 días',

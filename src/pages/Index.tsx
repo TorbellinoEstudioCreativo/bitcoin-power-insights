@@ -7,11 +7,18 @@ import { Footer } from "@/components/trading/Footer";
 import { PortfolioInput } from "@/components/trading/PortfolioInput";
 import { usePowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 import { useDebouncedValue } from "@/hooks/useDebounce";
+import { useBitcoinPrice } from "@/hooks/useBitcoinPrice";
+import { BTC_PRICE_FALLBACK } from "@/lib/constants";
 
 const Index = () => {
   const [portfolioValue, setPortfolioValue] = useState(15000);
   const debouncedPortfolioValue = useDebouncedValue(portfolioValue, 300);
-  const analysis = usePowerLawAnalysis(debouncedPortfolioValue);
+  
+  // Fetch real-time BTC price from CoinGecko
+  const { data: priceData, isError: isPriceError, dataUpdatedAt } = useBitcoinPrice();
+  const btcPrice = priceData?.price ?? BTC_PRICE_FALLBACK;
+  
+  const analysis = usePowerLawAnalysis(debouncedPortfolioValue, btcPrice);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -25,11 +32,16 @@ const Index = () => {
         </div>
         
         {/* Main Content */}
-        <MainContent analysis={analysis} />
+        <MainContent analysis={analysis} btcPrice={btcPrice} />
         
         {/* Right Sidebar - hidden on mobile/tablet, shown on xl+ */}
         <div className="hidden xl:block">
-          <RightSidebar analysis={analysis} />
+          <RightSidebar 
+            analysis={analysis} 
+            priceData={priceData}
+            isPriceError={isPriceError}
+            dataUpdatedAt={dataUpdatedAt}
+          />
         </div>
       </div>
       
