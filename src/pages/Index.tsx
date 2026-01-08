@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/trading/Header";
 import { LeftSidebar } from "@/components/trading/LeftSidebar";
 import { RightSidebar } from "@/components/trading/RightSidebar";
@@ -12,14 +12,36 @@ import { useAlerts } from "@/hooks/useAlerts";
 import { BTC_PRICE_FALLBACK } from "@/lib/constants";
 
 const Index = () => {
-  const [portfolioValue, setPortfolioValue] = useState(15000);
+  // Portfolio value state with localStorage
+  const [portfolioValue, setPortfolioValue] = useState(() => {
+    const saved = localStorage.getItem('portfolioValue');
+    return saved ? parseFloat(saved) : 15000;
+  });
+
+  // Interest rate state with localStorage
+  const [interestRate, setInterestRate] = useState(() => {
+    const saved = localStorage.getItem('interestRate');
+    return saved ? parseFloat(saved) : 5.37;
+  });
+
+  // Persist portfolio value
+  useEffect(() => {
+    localStorage.setItem('portfolioValue', portfolioValue.toString());
+  }, [portfolioValue]);
+
+  // Persist interest rate
+  useEffect(() => {
+    localStorage.setItem('interestRate', interestRate.toString());
+  }, [interestRate]);
+
   const debouncedPortfolioValue = useDebouncedValue(portfolioValue, 300);
+  const debouncedInterestRate = useDebouncedValue(interestRate, 300);
   
   // Fetch real-time BTC price from CoinGecko
   const { data: priceData, isError: isPriceError, dataUpdatedAt } = useBitcoinPrice();
   const btcPrice = priceData?.price ?? BTC_PRICE_FALLBACK;
   
-  const analysis = usePowerLawAnalysis(debouncedPortfolioValue, btcPrice);
+  const analysis = usePowerLawAnalysis(debouncedPortfolioValue, btcPrice, debouncedInterestRate / 100);
   
   // Alerts system - monitors btcPrice for triggered alerts
   const {
@@ -46,7 +68,13 @@ const Index = () => {
         onDeleteAlert={deleteAlert}
         onResetAlert={resetAlert}
       />
-      <PortfolioInput value={portfolioValue} onChange={setPortfolioValue} />
+      <PortfolioInput 
+        value={portfolioValue} 
+        onChange={setPortfolioValue}
+        interestRate={interestRate}
+        onInterestRateChange={setInterestRate}
+        estimatedCost6m={analysis.costoIntereses6m}
+      />
       
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar - hidden on mobile/tablet */}
@@ -55,7 +83,7 @@ const Index = () => {
         </div>
         
         {/* Main Content */}
-        <MainContent analysis={analysis} btcPrice={btcPrice} />
+        <MainContent analysis={analysis} btcPrice={btcPrice} interestRate={interestRate} />
         
         {/* Right Sidebar - hidden on mobile/tablet, shown on xl+ */}
         <div className="hidden xl:block">

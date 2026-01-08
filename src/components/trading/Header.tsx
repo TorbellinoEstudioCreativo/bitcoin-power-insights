@@ -1,9 +1,20 @@
 import { useState } from "react";
-import { Settings, TrendingUp, Info } from "lucide-react";
+import { Settings, TrendingUp, Info, Sun, Moon, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PowerLawInfoModal } from "./PowerLawInfoModal";
 import { AlertsManager } from "./AlertsManager";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import { playAlertSound } from "@/lib/alertSounds";
 import type { Alert, AlertType, AlertDirection } from "@/hooks/useAlerts";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface HeaderProps {
   alerts?: Alert[];
@@ -35,6 +46,8 @@ export function Header({
   onResetAlert,
 }: HeaderProps) {
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const { language, setLanguage, t } = useLanguage();
+  const { theme, setTheme } = useTheme();
 
   return (
     <>
@@ -45,16 +58,16 @@ export function Header({
           </div>
           <div>
             <h1 className="text-lg font-bold text-foreground">
-              Bitcoin Power Law Analyzer
+              {t('header', 'title')}
             </h1>
             <div className="flex items-center gap-1.5">
               <p className="text-xs text-muted-foreground">
-                Modelo de Giovanni Santostasi
+                {t('header', 'subtitle')}
               </p>
               <button
                 onClick={() => setShowInfoModal(true)}
                 className="p-0.5 hover:bg-muted rounded-full transition-colors"
-                aria-label="Información sobre el modelo"
+                aria-label={t('header', 'infoAriaLabel')}
               >
                 <Info className="w-3.5 h-3.5 text-muted-foreground hover:text-primary" />
               </button>
@@ -62,7 +75,31 @@ export function Header({
           </div>
         </div>
         
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          {/* Language Toggle */}
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+            <button
+              onClick={() => setLanguage('es')}
+              className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                language === 'es'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              🇪🇸 ES
+            </button>
+            <button
+              onClick={() => setLanguage('en')}
+              className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                language === 'en'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              🇺🇸 EN
+            </button>
+          </div>
+
           {onAddAlert && onToggleAlert && onDeleteAlert && onResetAlert && (
             <AlertsManager
               alerts={alerts}
@@ -76,9 +113,40 @@ export function Header({
               onResetAlert={onResetAlert}
             />
           )}
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-            <Settings className="w-5 h-5" />
-          </Button>
+          
+          {/* Settings Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+                <Settings className="w-5 h-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>{t('settings', 'title')}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              
+              {/* Theme Toggle */}
+              <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+                {theme === 'dark' ? (
+                  <>
+                    <Sun className="w-4 h-4 mr-2" />
+                    {t('settings', 'themeLight')}
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-4 h-4 mr-2" />
+                    {t('settings', 'themeDark')}
+                  </>
+                )}
+              </DropdownMenuItem>
+              
+              {/* Test Sound */}
+              <DropdownMenuItem onClick={() => playAlertSound('success')}>
+                <Volume2 className="w-4 h-4 mr-2" />
+                {t('settings', 'testSound')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
