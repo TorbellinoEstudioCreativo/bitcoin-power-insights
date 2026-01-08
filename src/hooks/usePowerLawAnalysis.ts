@@ -11,6 +11,20 @@ export const calcularPrecioPowerLaw = (years: number): number => {
   return Math.pow(10, -1.847796462) * Math.pow(years, 5.616314045);
 };
 
+export type Estrategia = 'LONG' | 'SHORT';
+
+export interface PosicionShort {
+  porcentajeShort: number;
+  colateralShort: number;
+  apalancamientoShort: number;
+  exposicionShort: number;
+  btcShortAmount: number;
+  precioLiquidacionShort: number;
+  precioMarginCallShort: number;
+  gananciaSiBajaModelo: number;
+  retornoShort: number;
+}
+
 export interface PowerLawAnalysis {
   // Time metrics
   daysSinceGenesis: number;
@@ -65,6 +79,10 @@ export interface PowerLawAnalysis {
   // Suggested leverage
   apalancamientoSugerido: string;
   apalancamientoRiesgo: string;
+  
+  // Strategy recommendation
+  estrategiaRecomendada: Estrategia;
+  posicionShort: PosicionShort;
 }
 
 export function usePowerLawAnalysis(portfolioValue: number, btcPrice: number): PowerLawAnalysis {
@@ -211,6 +229,36 @@ export function usePowerLawAnalysis(portfolioValue: number, btcPrice: number): P
       apalancamientoRiesgo = "alto";
     }
 
+    // 13. Strategy recommendation
+    const estrategiaRecomendada: Estrategia = ratio < 1.2 ? 'LONG' : ratio > 2.0 ? 'SHORT' : 'LONG';
+
+    // 14. SHORT position calculations
+    const porcentajeShort = ratio > 3.0 ? 50 : ratio > 2.0 ? 30 : 20;
+    const colateralShort = portfolioValue * (porcentajeShort / 100);
+    const apalancamientoShort = ratio > 3.0 ? 3 : 2;
+    const exposicionShort = colateralShort * apalancamientoShort;
+    const btcShortAmount = exposicionShort / btcPrice;
+    
+    // SHORT liquidation: price × (1 + 1/leverage) - goes UP
+    const precioLiquidacionShort = btcPrice * (1 + 1/apalancamientoShort);
+    const precioMarginCallShort = btcPrice * (1 + 0.85/apalancamientoShort);
+    
+    // Profit if price drops to model
+    const gananciaSiBajaModelo = (btcPrice - precioModelo) * btcShortAmount;
+    const retornoShort = colateralShort > 0 ? (gananciaSiBajaModelo / colateralShort) * 100 : 0;
+
+    const posicionShort: PosicionShort = {
+      porcentajeShort,
+      colateralShort,
+      apalancamientoShort,
+      exposicionShort,
+      btcShortAmount,
+      precioLiquidacionShort,
+      precioMarginCallShort,
+      gananciaSiBajaModelo,
+      retornoShort,
+    };
+
     return {
       daysSinceGenesis,
       yearsSinceGenesis,
@@ -246,6 +294,8 @@ export function usePowerLawAnalysis(portfolioValue: number, btcPrice: number): P
       retornoPorcentaje,
       apalancamientoSugerido,
       apalancamientoRiesgo,
+      estrategiaRecomendada,
+      posicionShort,
     };
   }, [portfolioValue, btcPrice]);
 }
