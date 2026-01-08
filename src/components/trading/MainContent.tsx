@@ -2,6 +2,7 @@ import { Card } from "./Card";
 import { AlertTriangle } from "lucide-react";
 import { InfoTooltip } from "./InfoTooltip";
 import { PowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
+import { PowerLawChart } from "./PowerLawChart";
 
 interface MainContentProps {
   analysis: PowerLawAnalysis;
@@ -10,13 +11,10 @@ interface MainContentProps {
 export function MainContent({ analysis }: MainContentProps) {
   return (
     <main className="flex-1 p-6 overflow-y-auto">
-      {/* Chart Placeholder */}
-      <Card className="h-[500px] flex items-center justify-center mb-8">
-        <div className="text-center text-muted-foreground">
-          <div className="text-6xl mb-4">📈</div>
-          <p className="text-lg font-medium">Gráfico Power Law</p>
-          <p className="text-sm">Se implementará en Fase 4</p>
-        </div>
+      {/* Power Law Chart */}
+      <Card className="p-6 mb-8">
+        <h2 className="text-xl font-bold text-foreground mb-4">Gráfico Power Law</h2>
+        <PowerLawChart analysis={analysis} />
       </Card>
 
       {/* Risk Section */}
