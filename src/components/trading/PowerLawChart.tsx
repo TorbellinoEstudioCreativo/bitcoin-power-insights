@@ -49,6 +49,13 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
 
   const generateChartData = (tf: Timeframe): ChartDataPoint[] => {
     const data: ChartDataPoint[] = [];
+    const currentQuarter = Math.floor(currentDate.getMonth() / 3);
+
+    // Add current year with live price to historical prices
+    const dynamicHistoricalPrices: Record<number, number> = {
+      ...historicalPrices,
+      [currentYear]: btcPrice
+    };
 
     if (tf === 'all') {
       // Full view: QUARTERLY data for smooth curves
@@ -61,17 +68,17 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
           const years = days / 365.25;
           const modelo = calcularPrecioPowerLaw(years);
           
-          const isFuture = date > currentDate;
-          const isToday = year === currentYear && quarter === Math.floor(currentDate.getMonth() / 3);
+          const isFuture = year > currentYear || (year === currentYear && quarter > currentQuarter);
+          const isToday = year === currentYear && quarter === currentQuarter;
           
           let precioReal: number | null = null;
           if (!isFuture) {
             if (isToday) {
               precioReal = btcPrice;
-            } else if (historicalPrices[year]) {
+            } else if (dynamicHistoricalPrices[year]) {
               // Add variation within the year
               const quarterVariation = (quarter - 1.5) * 0.15;
-              precioReal = historicalPrices[year] * (1 + quarterVariation);
+              precioReal = dynamicHistoricalPrices[year] * (1 + quarterVariation);
             }
           }
           
@@ -86,6 +93,35 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
           });
         }
       }
+
+      // Force HOY point with exact CoinGecko price
+      const diasHoy = Math.floor((currentDate.getTime() - GENESIS_DATE.getTime()) / 86400000);
+      const yearsHoy = diasHoy / 365.25;
+      const modeloHoy = calcularPrecioPowerLaw(yearsHoy);
+
+      const indiceHoy = data.findIndex(d => d.isToday);
+      const puntoHoy: ChartDataPoint = {
+        date: currentYear.toString(),
+        modelo: Math.round(modeloHoy),
+        techo: Math.round(modeloHoy * 3.0),
+        piso: Math.round(modeloHoy * 0.5),
+        precioReal: btcPrice,
+        isFuture: false,
+        isToday: true
+      };
+
+      if (indiceHoy >= 0) {
+        data[indiceHoy] = puntoHoy;
+      }
+
+      // Ensure future points have no precioReal
+      data.forEach(punto => {
+        const yearStr = punto.date || '';
+        const year = parseInt(yearStr) || 0;
+        if (year > currentYear || (punto.isFuture && !punto.isToday)) {
+          punto.precioReal = null;
+        }
+      });
     } else if (tf === '15d' || tf === '30d') {
       // Short term: DAILY data
       const days = tf === '15d' ? 15 : 30;
