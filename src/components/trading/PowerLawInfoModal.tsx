@@ -16,14 +16,14 @@ interface PowerLawInfoModalProps {
 export function PowerLawInfoModal({ open, onOpenChange }: PowerLawInfoModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="text-xl flex items-center gap-2">
             📐 El Modelo Power Law de Bitcoin
           </DialogTitle>
         </DialogHeader>
         
-        <ScrollArea className="flex-1 pr-4">
+        <div className="flex-1 overflow-y-auto pr-4 min-h-0">
           <div className="space-y-6 pb-4">
             {/* Sección 1: ¿Qué es? */}
             <section className="space-y-3">
@@ -278,7 +278,7 @@ export function PowerLawInfoModal({ open, onOpenChange }: PowerLawInfoModalProps
               </p>
             </section>
           </div>
-        </ScrollArea>
+        </div>
         
         <DialogFooter className="mt-4">
           <Button onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
