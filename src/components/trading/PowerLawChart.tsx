@@ -209,17 +209,17 @@ export function PowerLawChart({ analysis }: PowerLawChartProps) {
   };
 
   return (
-    <div>
+    <div className="animate-fade-in">
       {/* Timeframe Selector */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6">
         {(['15d', '30d', '3m', '1y', 'all'] as Timeframe[]).map((tf) => (
           <button
             key={tf}
             onClick={() => setTimeframe(tf)}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+            className={`px-3 py-2 sm:px-4 rounded-lg font-medium transition-all duration-300 text-sm sm:text-base ${
               timeframe === tf
-                ? 'bg-bitcoin text-white'
-                : 'bg-card text-muted-foreground hover:bg-muted'
+                ? 'bg-bitcoin text-white shadow-lg shadow-bitcoin/30'
+                : 'bg-card text-muted-foreground hover:bg-muted hover:scale-105'
             }`}
           >
             {timeframeLabels[tf]}
@@ -228,8 +228,9 @@ export function PowerLawChart({ analysis }: PowerLawChartProps) {
       </div>
 
       {/* Chart */}
-      <ResponsiveContainer width="100%" height={450}>
-        <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+      <div className="h-[300px] sm:h-[400px] lg:h-[450px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           
           <XAxis 
@@ -285,6 +286,8 @@ export function PowerLawChart({ analysis }: PowerLawChartProps) {
             strokeDasharray="5 5"
             dot={false}
             name="Techo (3.0x)"
+            animationDuration={1500}
+            animationEasing="ease-out"
           />
           
           {/* Model Line (Blue) */}
@@ -295,6 +298,8 @@ export function PowerLawChart({ analysis }: PowerLawChartProps) {
             strokeWidth={3}
             dot={false}
             name="Modelo"
+            animationDuration={1500}
+            animationEasing="ease-out"
           />
           
           {/* Real Price Line (Orange) */}
@@ -306,6 +311,8 @@ export function PowerLawChart({ analysis }: PowerLawChartProps) {
             dot={renderDot}
             connectNulls={false}
             name="Precio Real"
+            animationDuration={1500}
+            animationEasing="ease-out"
           />
           
           {/* Floor Line (Red) */}
@@ -317,6 +324,8 @@ export function PowerLawChart({ analysis }: PowerLawChartProps) {
             strokeDasharray="5 5"
             dot={false}
             name="Piso (0.5x)"
+            animationDuration={1500}
+            animationEasing="ease-out"
           />
           
           {/* Today vertical reference line (only for 'all' view) */}
@@ -336,7 +345,8 @@ export function PowerLawChart({ analysis }: PowerLawChartProps) {
             />
           )}
         </LineChart>
-      </ResponsiveContainer>
+        </ResponsiveContainer>
+      </div>
 
       {/* Informative Note for short-term views */}
       {(timeframe === '15d' || timeframe === '30d') && (

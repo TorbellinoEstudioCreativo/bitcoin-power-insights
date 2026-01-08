@@ -1,6 +1,7 @@
 import { Card } from "./Card";
 import { AlertTriangle, TrendingDown, BarChart3 } from "lucide-react";
 import { InfoTooltip } from "./InfoTooltip";
+import { AnimatedNumber } from "./AnimatedNumber";
 import { PowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 import { PowerLawChart } from "./PowerLawChart";
 import { BTC_PRICE } from "@/lib/constants";
@@ -43,7 +44,7 @@ export function MainContent({ analysis }: MainContentProps) {
               <InfoTooltip content="Cantidad de BTC a depositar como garantía del préstamo. Se calcula como % del portfolio según la zona de valoración." />
             </div>
             <div className="text-2xl font-bold text-foreground">
-              ${Math.round(analysis.colateralUSD).toLocaleString()}
+              <AnimatedNumber value={Math.round(analysis.colateralUSD)} prefix="$" />
             </div>
             <div className="text-xs text-muted-foreground mt-1">
               {analysis.porcentajePortfolio}% del portfolio
@@ -60,7 +61,7 @@ export function MainContent({ analysis }: MainContentProps) {
               <InfoTooltip content="Loan-to-Value: porcentaje del colateral que puedes pedir prestado. Mayor LTV = mayor riesgo de liquidación." />
             </div>
             <div className="text-2xl font-bold text-success">
-              ${Math.round(analysis.prestamoUSD).toLocaleString()}
+              <AnimatedNumber value={Math.round(analysis.prestamoUSD)} prefix="$" />
             </div>
             <div className="text-xs text-muted-foreground mt-1">
               LTV: {(analysis.ltvAjustado * 100).toFixed(0)}%
@@ -112,7 +113,7 @@ export function MainContent({ analysis }: MainContentProps) {
               <div>
                 <div className="text-sm text-muted-foreground">Margin Call (85% LTV)</div>
                 <div className="text-xl font-bold text-warning">
-                  ${Math.round(analysis.precioMarginCall).toLocaleString()}
+                  <AnimatedNumber value={Math.round(analysis.precioMarginCall)} prefix="$" />
                 </div>
               </div>
               <div className="text-right">
@@ -128,7 +129,7 @@ export function MainContent({ analysis }: MainContentProps) {
               <div>
                 <div className="text-sm text-muted-foreground">Liquidación (91% LTV)</div>
                 <div className="text-xl font-bold text-danger">
-                  ${Math.round(analysis.precioLiquidacion).toLocaleString()}
+                  <AnimatedNumber value={Math.round(analysis.precioLiquidacion)} prefix="$" />
                 </div>
               </div>
               <div className="text-right">

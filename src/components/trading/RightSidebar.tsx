@@ -2,6 +2,7 @@ import { TrendingUp, Target, Percent, Bot } from "lucide-react";
 import { Card } from "./Card";
 import { Badge } from "./Badge";
 import { InfoTooltip } from "./InfoTooltip";
+import { AnimatedNumber } from "./AnimatedNumber";
 import { PowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 
 interface RightSidebarProps {
@@ -19,7 +20,7 @@ export function RightSidebar({ analysis }: RightSidebarProps) {
           <InfoTooltip content="Precio actual de Bitcoin en USD (hardcoded para demo)" />
         </div>
         <div className="text-3xl font-bold text-foreground">
-          ${analysis.btcPrice.toLocaleString()}
+          <AnimatedNumber value={analysis.btcPrice} prefix="$" />
         </div>
         <div className="text-xs text-muted-foreground mt-1">
           Bitcoin (BTC)
@@ -34,7 +35,7 @@ export function RightSidebar({ analysis }: RightSidebarProps) {
           <InfoTooltip content={`Precio justo calculado con el modelo Power Law basado en ${analysis.daysSinceGenesis.toLocaleString()} días desde el génesis de Bitcoin (3 enero 2009)`} />
         </div>
         <div className="text-3xl font-bold text-info">
-          ${Math.round(analysis.precioModelo).toLocaleString()}
+          <AnimatedNumber value={Math.round(analysis.precioModelo)} prefix="$" />
         </div>
         <div className="text-xs text-muted-foreground mt-1">
           Power Law • {analysis.daysSinceGenesis.toLocaleString()} días desde génesis
@@ -49,7 +50,9 @@ export function RightSidebar({ analysis }: RightSidebarProps) {
             <span className="text-sm font-medium text-muted-foreground">Ratio (R)</span>
             <InfoTooltip content="Ratio = Precio Actual / Precio Modelo. Ratio < 1.0 indica que BTC está infravalorado. Ratio > 1.0 indica sobrevaloración." />
           </div>
-          <span className="text-2xl font-bold text-foreground">{analysis.ratio.toFixed(2)}</span>
+          <span className="text-2xl font-bold text-foreground">
+            <AnimatedNumber value={analysis.ratio} decimals={2} />
+          </span>
         </div>
         
         {/* Progress bar */}
@@ -60,7 +63,7 @@ export function RightSidebar({ analysis }: RightSidebarProps) {
               style={{ width: '100%' }}
             />
             <div 
-              className="absolute top-1/2 w-3 h-3 bg-today rounded-full border-2 border-background"
+              className="absolute top-1/2 w-3 h-3 bg-today rounded-full border-2 border-background transition-all duration-500"
               style={{ 
                 left: `${Math.min(Math.max(analysis.ratio / 3 * 100, 2), 98)}%`, 
                 transform: 'translate(-50%, -50%)' 
@@ -99,7 +102,9 @@ export function RightSidebar({ analysis }: RightSidebarProps) {
           </div>
           <div className="flex items-center justify-center gap-2 mt-2">
             <span className="text-xs text-muted-foreground">Score Total:</span>
-            <span className="text-lg font-bold text-primary">{Math.round(analysis.scoreTotal)}/100</span>
+            <span className="text-lg font-bold text-primary">
+              <AnimatedNumber value={Math.round(analysis.scoreTotal)} suffix="/100" />
+            </span>
           </div>
         </div>
 
@@ -110,14 +115,18 @@ export function RightSidebar({ analysis }: RightSidebarProps) {
               <span className="text-muted-foreground">Oportunidad:</span>
               <InfoTooltip content="Basado en qué tan infravalorado está BTC vs el modelo. Mayor score = mejor oportunidad de compra." />
             </div>
-            <span className="font-medium text-success">{analysis.scoreOportunidad}/100</span>
+            <span className="font-medium text-success">
+              <AnimatedNumber value={analysis.scoreOportunidad} suffix="/100" />
+            </span>
           </div>
           <div className="flex justify-between items-center text-sm">
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground">Seguridad:</span>
               <InfoTooltip content="Basado en el LTV del préstamo. Menor LTV = mayor seguridad contra liquidación." />
             </div>
-            <span className="font-medium text-info">{analysis.scoreSeguridad}/100</span>
+            <span className="font-medium text-info">
+              <AnimatedNumber value={analysis.scoreSeguridad} suffix="/100" />
+            </span>
           </div>
         </div>
 
