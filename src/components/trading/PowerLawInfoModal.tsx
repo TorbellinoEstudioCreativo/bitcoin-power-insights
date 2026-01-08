@@ -14,7 +14,7 @@ interface PowerLawInfoModalProps {
 }
 
 export function PowerLawInfoModal({ open, onOpenChange }: PowerLawInfoModalProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -246,28 +246,28 @@ export function PowerLawInfoModal({ open, onOpenChange }: PowerLawInfoModalProps
             <section className="border-t border-border pt-4 space-y-3">
               <p className="text-sm font-medium text-foreground">📚 {t('modal', 'references')}</p>
               <div className="text-sm text-muted-foreground space-y-1">
-                <p>
-                  •{" "}
-                  <a 
-                    href="https://www.bitcoinmagazinepro.com/charts/bitcoin-power-law-corridor/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    Bitcoin Power Law Corridor - Bitcoin Magazine Pro
-                  </a>
-                </p>
-                <p>
-                  •{" "}
-                  <a 
-                    href="https://www.lookintobitcoin.com/charts/bitcoin-power-law/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    Bitcoin Power Law - Look Into Bitcoin
-                  </a>
-                </p>
+              <p>
+                •{" "}
+                <a
+                  href="https://bitcoinpower.law/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  {language === 'es' ? 'Bitcoin Power Law - Modelo Oficial' : 'Bitcoin Power Law - Official Model'}
+                </a>
+              </p>
+              <p>
+                •{" "}
+                <a
+                  href="https://www.mexc.com/learn/article/what-is-bitcoin-power-law-model-chart-calculator-guide/1"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  {language === 'es' ? 'Guía Completa del Power Law - MEXC Learn' : 'Complete Power Law Guide - MEXC Learn'}
+                </a>
+              </p>
                 <p>
                   •{" "}
                   <a 
