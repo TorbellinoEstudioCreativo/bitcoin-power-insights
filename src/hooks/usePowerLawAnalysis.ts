@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { GENESIS_DATE, BTC_PRICE, INTEREST_RATE } from '@/lib/constants';
+import { GENESIS_DATE, INTEREST_RATE } from '@/lib/constants';
 
 /**
  * Power Law formula: P(t) = 10^(-1.847796462) × t^(5.616314045)
@@ -67,7 +67,7 @@ export interface PowerLawAnalysis {
   apalancamientoRiesgo: string;
 }
 
-export function usePowerLawAnalysis(portfolioValue: number): PowerLawAnalysis {
+export function usePowerLawAnalysis(portfolioValue: number, btcPrice: number): PowerLawAnalysis {
   return useMemo(() => {
     // 1. Calculate days and years since genesis
     const currentDate = new Date();
@@ -80,7 +80,7 @@ export function usePowerLawAnalysis(portfolioValue: number): PowerLawAnalysis {
     const precioModelo = calcularPrecioPowerLaw(yearsSinceGenesis);
 
     // 3. Calculate ratio (key metric)
-    const ratio = BTC_PRICE / precioModelo;
+    const ratio = btcPrice / precioModelo;
 
     // 4. Calculate bands
     const techo = precioModelo * 3.0;  // Extreme overvaluation
@@ -139,21 +139,21 @@ export function usePowerLawAnalysis(portfolioValue: number): PowerLawAnalysis {
 
     // 7. Calculate loan amounts
     const colateralUSD = portfolioValue * (porcentajePortfolio / 100);
-    const colateralBTC = colateralUSD / BTC_PRICE;
+    const colateralBTC = colateralUSD / btcPrice;
 
     // LTV (Loan-to-Value)
     const ltvBase = 0.60; // 60% base
     const ltvAjustado = ratio > 1.0 ? ltvBase * 0.85 : ltvBase;
 
     const prestamoUSD = colateralUSD * ltvAjustado;
-    const compraBTC = prestamoUSD / BTC_PRICE;
+    const compraBTC = prestamoUSD / btcPrice;
     const exposicionTotal = colateralBTC + compraBTC;
     const apalancamiento = colateralBTC > 0 ? exposicionTotal / colateralBTC : 0;
 
     // 8. Critical prices
     const precioLiquidacion = colateralBTC > 0 ? prestamoUSD / (colateralBTC * 0.91) : 0; // 91% LTV
     const precioMarginCall = colateralBTC > 0 ? prestamoUSD / (colateralBTC * 0.85) : 0;  // 85% LTV
-    const margenLiquidacion = precioLiquidacion > 0 ? ((BTC_PRICE - precioLiquidacion) / BTC_PRICE) * 100 : 0;
+    const margenLiquidacion = precioLiquidacion > 0 ? ((btcPrice - precioLiquidacion) / btcPrice) * 100 : 0;
 
     // 9. Security score
     let scoreSeguridad: number;
@@ -190,7 +190,7 @@ export function usePowerLawAnalysis(portfolioValue: number): PowerLawAnalysis {
     // 11. 6-month projections
     const costoIntereses6m = prestamoUSD * (INTEREST_RATE / 2); // 6 months = half year
     const valorFuturoSiFairValue = exposicionTotal * precioModelo;
-    const valorActual = exposicionTotal * BTC_PRICE;
+    const valorActual = exposicionTotal * btcPrice;
     const gananciaNeta = valorFuturoSiFairValue - valorActual - costoIntereses6m;
     const retornoPorcentaje = colateralUSD > 0 ? (gananciaNeta / colateralUSD) * 100 : 0;
 
@@ -214,7 +214,7 @@ export function usePowerLawAnalysis(portfolioValue: number): PowerLawAnalysis {
     return {
       daysSinceGenesis,
       yearsSinceGenesis,
-      btcPrice: BTC_PRICE,
+      btcPrice,
       precioModelo,
       ratio,
       techo,
@@ -247,5 +247,5 @@ export function usePowerLawAnalysis(portfolioValue: number): PowerLawAnalysis {
       apalancamientoSugerido,
       apalancamientoRiesgo,
     };
-  }, [portfolioValue]);
+  }, [portfolioValue, btcPrice]);
 }

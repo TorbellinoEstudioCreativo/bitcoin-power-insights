@@ -4,13 +4,13 @@ import { InfoTooltip } from "./InfoTooltip";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { PowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 import { PowerLawChart } from "./PowerLawChart";
-import { BTC_PRICE } from "@/lib/constants";
 
 interface MainContentProps {
   analysis: PowerLawAnalysis;
+  btcPrice: number;
 }
 
-export function MainContent({ analysis }: MainContentProps) {
+export function MainContent({ analysis, btcPrice }: MainContentProps) {
   // Leverage scenarios for the table
   const leverageScenarios = [
     { leverage: 1.5, risk: 'Bajo', color: 'text-success', rec: '✅' },
@@ -25,7 +25,7 @@ export function MainContent({ analysis }: MainContentProps) {
       {/* Power Law Chart */}
       <Card className="p-6 mb-8">
         <h2 className="text-xl font-bold text-foreground mb-4">Gráfico Power Law</h2>
-        <PowerLawChart analysis={analysis} />
+        <PowerLawChart analysis={analysis} btcPrice={btcPrice} />
       </Card>
 
       {/* Risk Section */}
@@ -119,7 +119,7 @@ export function MainContent({ analysis }: MainContentProps) {
               <div className="text-right">
                 <div className="text-xs text-muted-foreground">Caída necesaria</div>
                 <div className="text-sm text-warning">
-                  -{((1 - analysis.precioMarginCall / BTC_PRICE) * 100).toFixed(0)}%
+                  -{((1 - analysis.precioMarginCall / btcPrice) * 100).toFixed(0)}%
                 </div>
               </div>
             </div>
@@ -135,7 +135,7 @@ export function MainContent({ analysis }: MainContentProps) {
               <div className="text-right">
                 <div className="text-xs text-muted-foreground">Caída necesaria</div>
                 <div className="text-sm text-danger">
-                  -{((1 - analysis.precioLiquidacion / BTC_PRICE) * 100).toFixed(0)}%
+                  -{((1 - analysis.precioLiquidacion / btcPrice) * 100).toFixed(0)}%
                 </div>
               </div>
             </div>
@@ -242,8 +242,8 @@ export function MainContent({ analysis }: MainContentProps) {
               </thead>
               <tbody>
                 {leverageScenarios.map(({ leverage, risk, color, rec }) => {
-                  const liquidacion = BTC_PRICE * (1 - 1/leverage);
-                  const caida = ((1 - liquidacion / BTC_PRICE) * 100);
+                  const liquidacion = btcPrice * (1 - 1/leverage);
+                  const caida = ((1 - liquidacion / btcPrice) * 100);
                   
                   return (
                     <tr key={leverage} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
