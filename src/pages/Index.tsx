@@ -8,6 +8,7 @@ import { PortfolioInput } from "@/components/trading/PortfolioInput";
 import { usePowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 import { useDebouncedValue } from "@/hooks/useDebounce";
 import { useBitcoinPrice } from "@/hooks/useBitcoinPrice";
+import { useAlerts } from "@/hooks/useAlerts";
 import { BTC_PRICE_FALLBACK } from "@/lib/constants";
 
 const Index = () => {
@@ -19,10 +20,32 @@ const Index = () => {
   const btcPrice = priceData?.price ?? BTC_PRICE_FALLBACK;
   
   const analysis = usePowerLawAnalysis(debouncedPortfolioValue, btcPrice);
+  
+  // Alerts system - monitors btcPrice for triggered alerts
+  const {
+    alerts,
+    activeAlertsCount,
+    canAddMore,
+    maxAlerts,
+    addAlert,
+    toggleAlert,
+    deleteAlert,
+    resetAlert,
+  } = useAlerts(btcPrice);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Header />
+      <Header
+        alerts={alerts}
+        activeAlertsCount={activeAlertsCount}
+        canAddMore={canAddMore}
+        maxAlerts={maxAlerts}
+        currentPrice={btcPrice}
+        onAddAlert={addAlert}
+        onToggleAlert={toggleAlert}
+        onDeleteAlert={deleteAlert}
+        onResetAlert={resetAlert}
+      />
       <PortfolioInput value={portfolioValue} onChange={setPortfolioValue} />
       
       <div className="flex flex-1 overflow-hidden">

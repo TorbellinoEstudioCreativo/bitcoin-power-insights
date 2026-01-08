@@ -2,8 +2,38 @@ import { useState } from "react";
 import { Settings, TrendingUp, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PowerLawInfoModal } from "./PowerLawInfoModal";
+import { AlertsManager } from "./AlertsManager";
+import type { Alert, AlertType, AlertDirection } from "@/hooks/useAlerts";
 
-export function Header() {
+interface HeaderProps {
+  alerts?: Alert[];
+  activeAlertsCount?: number;
+  canAddMore?: boolean;
+  maxAlerts?: number;
+  currentPrice?: number;
+  onAddAlert?: (alert: {
+    type: AlertType;
+    name: string;
+    targetPrice: number;
+    direction: AlertDirection;
+    active: boolean;
+  }) => boolean;
+  onToggleAlert?: (id: string) => void;
+  onDeleteAlert?: (id: string) => void;
+  onResetAlert?: (id: string) => void;
+}
+
+export function Header({
+  alerts = [],
+  activeAlertsCount = 0,
+  canAddMore = true,
+  maxAlerts = 5,
+  currentPrice,
+  onAddAlert,
+  onToggleAlert,
+  onDeleteAlert,
+  onResetAlert,
+}: HeaderProps) {
   const [showInfoModal, setShowInfoModal] = useState(false);
 
   return (
@@ -32,9 +62,24 @@ export function Header() {
           </div>
         </div>
         
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-          <Settings className="w-5 h-5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          {onAddAlert && onToggleAlert && onDeleteAlert && onResetAlert && (
+            <AlertsManager
+              alerts={alerts}
+              activeAlertsCount={activeAlertsCount}
+              canAddMore={canAddMore}
+              maxAlerts={maxAlerts}
+              currentPrice={currentPrice}
+              onAddAlert={onAddAlert}
+              onToggleAlert={onToggleAlert}
+              onDeleteAlert={onDeleteAlert}
+              onResetAlert={onResetAlert}
+            />
+          )}
+          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+            <Settings className="w-5 h-5" />
+          </Button>
+        </div>
       </header>
 
       <PowerLawInfoModal 
