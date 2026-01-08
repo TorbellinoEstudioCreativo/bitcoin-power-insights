@@ -275,6 +275,11 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
             stroke="hsl(var(--muted-foreground))"
             style={{ fontSize: '12px' }}
             tick={{ fill: 'hsl(var(--muted-foreground))' }}
+            ticks={timeframe === 'all' ? 
+              Array.from({ length: 13 }, (_, i) => (2013 + i * 2).toString()) : 
+              undefined
+            }
+            interval={timeframe === 'all' ? 0 : 'preserveStartEnd'}
           />
           
           <YAxis 
