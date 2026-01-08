@@ -1,6 +1,7 @@
 import { TrendingUp, Target, Percent, Bot } from "lucide-react";
 import { Card } from "./Card";
 import { Badge } from "./Badge";
+import { InfoTooltip } from "./InfoTooltip";
 import { PowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 
 interface RightSidebarProps {
@@ -15,6 +16,7 @@ export function RightSidebar({ analysis }: RightSidebarProps) {
         <div className="flex items-center gap-2 mb-3">
           <TrendingUp className="w-4 h-4 text-bitcoin" />
           <span className="text-sm font-medium text-muted-foreground">Precio Actual</span>
+          <InfoTooltip content="Precio actual de Bitcoin en USD (hardcoded para demo)" />
         </div>
         <div className="text-3xl font-bold text-foreground">
           ${analysis.btcPrice.toLocaleString()}
@@ -29,6 +31,7 @@ export function RightSidebar({ analysis }: RightSidebarProps) {
         <div className="flex items-center gap-2 mb-3">
           <Target className="w-4 h-4 text-info" />
           <span className="text-sm font-medium text-muted-foreground">Fair Value (Modelo)</span>
+          <InfoTooltip content={`Precio justo calculado con el modelo Power Law basado en ${analysis.daysSinceGenesis.toLocaleString()} días desde el génesis de Bitcoin (3 enero 2009)`} />
         </div>
         <div className="text-3xl font-bold text-info">
           ${Math.round(analysis.precioModelo).toLocaleString()}
@@ -44,6 +47,7 @@ export function RightSidebar({ analysis }: RightSidebarProps) {
           <div className="flex items-center gap-2">
             <Percent className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium text-muted-foreground">Ratio (R)</span>
+            <InfoTooltip content="Ratio = Precio Actual / Precio Modelo. Ratio < 1.0 indica que BTC está infravalorado. Ratio > 1.0 indica sobrevaloración." />
           </div>
           <span className="text-2xl font-bold text-foreground">{analysis.ratio.toFixed(2)}</span>
         </div>
@@ -101,12 +105,18 @@ export function RightSidebar({ analysis }: RightSidebarProps) {
 
         {/* Scores individuales */}
         <div className="space-y-2 mb-4">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Oportunidad:</span>
+          <div className="flex justify-between items-center text-sm">
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">Oportunidad:</span>
+              <InfoTooltip content="Basado en qué tan infravalorado está BTC vs el modelo. Mayor score = mejor oportunidad de compra." />
+            </div>
             <span className="font-medium text-success">{analysis.scoreOportunidad}/100</span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Seguridad:</span>
+          <div className="flex justify-between items-center text-sm">
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">Seguridad:</span>
+              <InfoTooltip content="Basado en el LTV del préstamo. Menor LTV = mayor seguridad contra liquidación." />
+            </div>
             <span className="font-medium text-info">{analysis.scoreSeguridad}/100</span>
           </div>
         </div>

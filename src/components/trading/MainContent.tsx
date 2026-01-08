@@ -1,5 +1,6 @@
 import { Card } from "./Card";
 import { AlertTriangle } from "lucide-react";
+import { InfoTooltip } from "./InfoTooltip";
 import { PowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 
 interface MainContentProps {
@@ -28,7 +29,10 @@ export function MainContent({ analysis }: MainContentProps) {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Card: Colateral */}
           <Card>
-            <div className="text-sm text-muted-foreground mb-1">Colateral</div>
+            <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+              <span>Colateral</span>
+              <InfoTooltip content="Cantidad de BTC a depositar como garantía del préstamo. Se calcula como % del portfolio según la zona de valoración." />
+            </div>
             <div className="text-2xl font-bold text-foreground">
               ${Math.round(analysis.colateralUSD).toLocaleString()}
             </div>
@@ -42,7 +46,10 @@ export function MainContent({ analysis }: MainContentProps) {
 
           {/* Card: Préstamo */}
           <Card>
-            <div className="text-sm text-muted-foreground mb-1">Préstamo</div>
+            <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+              <span>Préstamo</span>
+              <InfoTooltip content="Loan-to-Value: porcentaje del colateral que puedes pedir prestado. Mayor LTV = mayor riesgo de liquidación." />
+            </div>
             <div className="text-2xl font-bold text-success">
               ${Math.round(analysis.prestamoUSD).toLocaleString()}
             </div>
@@ -67,7 +74,10 @@ export function MainContent({ analysis }: MainContentProps) {
 
           {/* Card: Exposición Total */}
           <Card>
-            <div className="text-sm text-muted-foreground mb-1">Exposición Total</div>
+            <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+              <span>Exposición Total</span>
+              <InfoTooltip content="Tu posición total en BTC = Colateral + BTC comprado con el préstamo." />
+            </div>
             <div className="text-2xl font-bold text-primary">
               {analysis.exposicionTotal.toFixed(4)} BTC
             </div>
