@@ -102,7 +102,7 @@ export function usePowerLawAnalysis(portfolioValue: number): PowerLawAnalysis {
       colorZona = "text-success";
       badgeVariant = "success";
       scoreOportunidad = 90;
-    } else if (ratio < 0.8) {
+    } else if (ratio <= 0.85) {
       zona = "INFRAVALORADO";
       colorZona = "text-success";
       badgeVariant = "success";
@@ -133,7 +133,7 @@ export function usePowerLawAnalysis(portfolioValue: number): PowerLawAnalysis {
     let porcentajePortfolio: number;
     if (ratio < 0.3) porcentajePortfolio = 80;      // Extreme
     else if (ratio < 0.5) porcentajePortfolio = 60; // Floor
-    else if (ratio < 0.8) porcentajePortfolio = 40; // Undervalued
+    else if (ratio <= 0.85) porcentajePortfolio = 40; // Undervalued
     else if (ratio < 1.2) porcentajePortfolio = 20; // Fair
     else porcentajePortfolio = 0;                    // Overvalued
 
@@ -200,7 +200,7 @@ export function usePowerLawAnalysis(portfolioValue: number): PowerLawAnalysis {
     if (ratio < 0.5) {
       apalancamientoSugerido = "2x";
       apalancamientoRiesgo = "bajo";
-    } else if (ratio < 0.8) {
+    } else if (ratio <= 0.85) {
       apalancamientoSugerido = "1.5x";
       apalancamientoRiesgo = "bajo";
     } else if (ratio < 1.2) {
