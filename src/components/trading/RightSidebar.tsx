@@ -4,8 +4,11 @@ import { Badge } from "./Badge";
 import { InfoTooltip } from "./InfoTooltip";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { OpportunityScore } from "./OpportunityScore";
+import { USDTDominanceCard } from "./USDTDominanceCard";
+import { CombinedSignalCard } from "./CombinedSignalCard";
 import { PowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 import { BitcoinPriceData } from "@/hooks/useBitcoinPrice";
+import { useUSDTDominance } from "@/hooks/useUSDTDominance";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -17,6 +20,8 @@ interface RightSidebarProps {
 }
 
 export function RightSidebar({ analysis, priceData, isPriceError, dataUpdatedAt }: RightSidebarProps) {
+  const { data: usdtData, isLoading: isUsdtLoading, isError: isUsdtError } = useUSDTDominance();
+  
   return (
     <aside className="w-80 bg-background border-l border-border p-4 flex flex-col gap-4 overflow-y-auto">
       {/* Card 1: Precio Actual */}
@@ -127,10 +132,29 @@ export function RightSidebar({ analysis, priceData, isPriceError, dataUpdatedAt 
         </div>
       </Card>
 
-      {/* Card 4: Opportunity Score (NEW) */}
+      {/* Card 4: Opportunity Score */}
       <OpportunityScore ratio={analysis.ratio} />
 
-      {/* Card 5: Recomendación IA (Destacada) */}
+      {/* Card 5: USDT Dominance */}
+      {usdtData && (
+        <USDTDominanceCard 
+          dominance={usdtData.dominance}
+          trend={usdtData.trend}
+          change={usdtData.change}
+          isLoading={isUsdtLoading}
+          isError={isUsdtError}
+        />
+      )}
+
+      {/* Card 6: Señal Combinada */}
+      {usdtData && (
+        <CombinedSignalCard 
+          ratio={analysis.ratio}
+          usdtTrend={usdtData.trend}
+        />
+      )}
+
+      {/* Card 7: Recomendación IA (Destacada) */}
       <Card highlighted>
         <div className="flex items-center gap-2 mb-4">
           <Bot className="w-5 h-5 text-primary" />
