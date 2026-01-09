@@ -53,14 +53,7 @@ export function MainContent({ analysis, btcPrice, interestRate = 5.37 }: MainCon
         <PowerLawChart analysis={analysis} btcPrice={btcPrice} />
       </Card>
       
-      {/* Support & Resistance Panel (NEW) */}
-      <div className="mb-6">
-        <SupportResistancePanel 
-          soportes={soportes}
-          resistencias={resistencias}
-          precioActual={btcPrice}
-        />
-      </div>
+      {/* Support & Resistance Panel removed - info already in Trading Panel */}
       
       {/* Active Trading Panel (NEW) */}
       <div className="mb-6">
