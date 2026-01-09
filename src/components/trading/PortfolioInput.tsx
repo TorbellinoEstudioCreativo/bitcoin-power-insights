@@ -30,11 +30,21 @@ export function PortfolioInput({
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
             <input
-              type="number"
-              value={value}
-              onChange={(e) => onChange(Number(e.target.value))}
-              min={100}
-              max={10000000}
+              type="text"
+              inputMode="numeric"
+              value={value === 0 ? '' : value.toLocaleString('en-US')}
+              onChange={(e) => {
+                const rawValue = e.target.value.replace(/,/g, '');
+                if (rawValue === '') {
+                  onChange(0);
+                  return;
+                }
+                const numValue = parseFloat(rawValue);
+                if (!isNaN(numValue) && numValue >= 0 && numValue <= 10000000) {
+                  onChange(numValue);
+                }
+              }}
+              placeholder="10,000"
               className="w-full pl-8 pr-4 py-2 bg-secondary border border-border rounded-lg 
                          text-foreground focus:border-primary focus:ring-1 focus:ring-primary
                          transition-colors duration-200"
@@ -53,12 +63,21 @@ export function PortfolioInput({
           </label>
           <div className="relative">
             <input
-              type="number"
-              value={interestRate}
-              onChange={(e) => onInterestRateChange(Number(e.target.value))}
-              min={0}
-              max={50}
-              step={0.01}
+              type="text"
+              inputMode="decimal"
+              value={interestRate === 0 ? '' : interestRate.toString()}
+              onChange={(e) => {
+                const rawValue = e.target.value;
+                if (rawValue === '') {
+                  onInterestRateChange(0);
+                  return;
+                }
+                const numValue = parseFloat(rawValue);
+                if (!isNaN(numValue) && numValue >= 0 && numValue <= 50) {
+                  onInterestRateChange(numValue);
+                }
+              }}
+              placeholder="5"
               className="w-full pl-4 pr-8 py-2 bg-secondary border border-border rounded-lg 
                          text-foreground focus:border-primary focus:ring-1 focus:ring-primary
                          transition-colors duration-200"
