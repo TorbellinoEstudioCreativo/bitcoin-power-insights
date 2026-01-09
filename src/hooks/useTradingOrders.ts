@@ -32,10 +32,11 @@ export interface OrdenesCompraResult {
 }
 
 export interface OrdenesVentaResult {
-  estrategia: 'CONSERVADOR' | 'BALANCEADO' | 'REDUCIR' | 'SALIR';
+  estrategia: 'CONSERVADOR' | 'BALANCEADO' | 'REDUCIR' | 'SALIR' | 'SALIDA_ESTRATEGICA';
   ordenes: OrdenVenta[];
   totalGanancia: number;
   porcentajeTotal: number;
+  isExitStrategy?: boolean;
 }
 
 export interface TradingInputs {
@@ -179,26 +180,42 @@ export function useTradingOrders(
   }, [precioActual, ratio, soportes, resistencias, inputs, shouldRecalculate]);
 }
 
+// Generate default buy levels based on percentage when no technical supports
+function generateDefaultBuyLevels(precioActual: number, usdtDisponibles: number): OrdenCompra[] {
+  const distancias = [1, 2, 3, 5, 7]; // Percentage drops for DCA
+  const numNiveles = distancias.length;
+  const porcentajePorNivel = 100 / numNiveles;
+  
+  return distancias.map((distancia, idx) => ({
+    nivel: idx + 1,
+    precio: Math.round(precioActual * (1 - distancia / 100)),
+    tipo: 'porcentaje',
+    nombre: `-${distancia}%`,
+    montoUSDT: Math.round(usdtDisponibles * (porcentajePorNivel / 100)),
+    btcAmount: (usdtDisponibles * (porcentajePorNivel / 100)) / (precioActual * (1 - distancia / 100)),
+    distancia,
+    score: 80 - idx * 5,
+    razon: idx <= 1 ? 'Swing trading' : 'Promedio hacia abajo (DCA)'
+  }));
+}
+
 function calcularOrdenesCompra(
   precioActual: number,
   ratio: number,
   soportes: NivelSoporte[],
   usdtDisponibles: number
 ): OrdenesCompraResult {
-  // Don't recommend buying if overvalued
-  if (ratio > 1.2) {
-    return {
-      recomendacion: 'NO_COMPRAR',
-      razon: 'Bitcoin sobrevalorado (ratio > 1.2)',
-      ordenes: []
-    };
-  }
+  // ALWAYS generate buy levels - never return empty
   
+  // If no technical supports, generate default percentage-based levels
   if (soportes.length === 0) {
+    const nivelesDefault = generateDefaultBuyLevels(precioActual, usdtDisponibles);
     return {
-      recomendacion: 'ESPERAR',
-      razon: 'Sin niveles de soporte claros',
-      ordenes: []
+      recomendacion: ratio > 1.2 ? 'NO_COMPRAR' : 'COMPRAR_EN_NIVELES',
+      razon: ratio > 1.2 
+        ? 'Bitcoin sobrevalorado - Comprar solo en soportes fuertes'
+        : 'Niveles de compra sugeridos (DCA)',
+      ordenes: nivelesDefault
     };
   }
   
@@ -224,11 +241,71 @@ function calcularOrdenesCompra(
   });
   
   return {
-    recomendacion: 'COMPRAR_EN_NIVELES',
-    razon: ratio < 0.8 
-      ? 'Excelente momento - Bitcoin muy infravalorado'
-      : 'Buena oportunidad - Precio cerca de fair value',
+    recomendacion: ratio > 1.2 ? 'NO_COMPRAR' : 'COMPRAR_EN_NIVELES',
+    razon: ratio > 1.2 
+      ? 'Bitcoin sobrevalorado - Precaución al comprar'
+      : ratio < 0.8 
+        ? 'Excelente momento - Bitcoin muy infravalorado'
+        : 'Buena oportunidad - Precio cerca de fair value',
     ordenes
+  };
+}
+
+// Generate exit strategy levels when in loss
+function generateExitStrategy(
+  precioActual: number,
+  precioEntrada: number,
+  tamañoPosicion: number,
+  currentPL: number
+): OrdenesVentaResult {
+  const lossPercent = Math.abs(currentPL);
+  
+  // Targets: rebounds above current price
+  const targets = [2, 4, 6, 8, 10];
+  
+  // % to sell based on loss magnitude
+  let percentages: number[];
+  if (lossPercent > 10) {
+    percentages = [20, 20, 20, 20, 20]; // Exit 100%
+  } else if (lossPercent > 5) {
+    percentages = [15, 15, 15, 15, 0]; // Exit 60%
+  } else {
+    percentages = [10, 10, 10, 10, 0]; // Exit 40%
+  }
+  
+  const ordenes: OrdenVenta[] = targets
+    .slice(0, percentages.filter(p => p > 0).length)
+    .map((targetPct, idx) => {
+      const targetPrice = Math.round(precioActual * (1 + targetPct / 100));
+      const porcentaje = percentages[idx];
+      const cantidadUSDT = tamañoPosicion * (porcentaje / 100);
+      const retorno = precioEntrada > 0 
+        ? ((targetPrice - precioEntrada) / precioEntrada) * 100
+        : 0;
+      const gananciaUSD = Math.round(cantidadUSDT * (retorno / 100));
+      
+      return {
+        nivel: idx + 1,
+        precio: targetPrice,
+        tipo: 'salida',
+        nombre: `+${targetPct}%`,
+        porcentaje,
+        cantidadUSDT: Math.round(cantidadUSDT),
+        gananciaUSD,
+        retorno,
+        razon: retorno < 0 ? 'Minimizar pérdida' : 'Recuperar posición'
+      };
+    });
+  
+  const totalGanancia = ordenes.reduce((sum, o) => sum + o.gananciaUSD, 0);
+  const porcentajeTotal = ordenes.reduce((sum, o) => sum + o.porcentaje, 0);
+  
+  return {
+    estrategia: 'SALIDA_ESTRATEGICA',
+    ordenes,
+    totalGanancia,
+    porcentajeTotal,
+    isExitStrategy: true
   };
 }
 
@@ -239,7 +316,17 @@ function calcularOrdenesVenta(
   ratio: number,
   resistencias: NivelSoporte[]
 ): OrdenesVentaResult {
-  // Determine strategy based on ratio
+  // Check if in loss - use exit strategy
+  const isInLoss = precioEntrada > 0 && precioActual < precioEntrada;
+  const currentPL = precioEntrada > 0 
+    ? ((precioActual - precioEntrada) / precioEntrada) * 100 
+    : 0;
+  
+  if (isInLoss) {
+    return generateExitStrategy(precioActual, precioEntrada, tamañoPosicion, currentPL);
+  }
+  
+  // In profit - use take-profit strategy
   let porcentajes: number[];
   let estrategia: OrdenesVentaResult['estrategia'];
   
@@ -255,6 +342,42 @@ function calcularOrdenesVenta(
   } else {
     estrategia = 'SALIR';
     porcentajes = [25, 25, 25, 25]; // 100% total
+  }
+  
+  // If no resistances, generate default levels based on percentage
+  if (resistencias.length === 0) {
+    const defaultTargets = [2, 4, 6, 8];
+    const ordenes: OrdenVenta[] = defaultTargets
+      .slice(0, porcentajes.length)
+      .map((targetPct, idx) => {
+        const targetPrice = Math.round(precioActual * (1 + targetPct / 100));
+        const porcentaje = porcentajes[idx] || 0;
+        const cantidadUSDT = tamañoPosicion * (porcentaje / 100);
+        const retorno = precioEntrada > 0 
+          ? ((targetPrice - precioEntrada) / precioEntrada) * 100
+          : targetPct;
+        const gananciaUSD = Math.round(cantidadUSDT * (retorno / 100));
+        
+        return {
+          nivel: idx + 1,
+          precio: targetPrice,
+          tipo: 'porcentaje',
+          nombre: `+${targetPct}%`,
+          porcentaje,
+          cantidadUSDT: Math.round(cantidadUSDT),
+          gananciaUSD,
+          retorno,
+          razon: 'Take-profit escalonado'
+        };
+      });
+    
+    return {
+      estrategia,
+      ordenes,
+      totalGanancia: ordenes.reduce((sum, o) => sum + o.gananciaUSD, 0),
+      porcentajeTotal: ordenes.reduce((sum, o) => sum + o.porcentaje, 0),
+      isExitStrategy: false
+    };
   }
   
   const ordenes: OrdenVenta[] = resistencias
@@ -287,6 +410,7 @@ function calcularOrdenesVenta(
     estrategia,
     ordenes,
     totalGanancia,
-    porcentajeTotal
+    porcentajeTotal,
+    isExitStrategy: false
   };
 }

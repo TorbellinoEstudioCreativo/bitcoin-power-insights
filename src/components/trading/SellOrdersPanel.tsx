@@ -11,7 +11,12 @@ interface SellOrdersPanelProps {
 export function SellOrdersPanel({ ordenesVenta, precioActual, precioEntrada }: SellOrdersPanelProps) {
   const { language } = useLanguage();
   
+  const isExitStrategy = ordenesVenta.isExitStrategy || ordenesVenta.estrategia === 'SALIDA_ESTRATEGICA';
+  
   const getStrategyStyle = () => {
+    if (isExitStrategy) {
+      return 'bg-warning/10 border-warning/30 text-warning';
+    }
     switch (ordenesVenta.estrategia) {
       case 'CONSERVADOR':
         return 'bg-success/10 border-success/30 text-success';
@@ -21,16 +26,22 @@ export function SellOrdersPanel({ ordenesVenta, precioActual, precioEntrada }: S
         return 'bg-warning/10 border-warning/30 text-warning';
       case 'SALIR':
         return 'bg-danger/10 border-danger/30 text-danger';
+      default:
+        return 'bg-info/10 border-info/30 text-info';
     }
   };
   
   const getStrategyText = () => {
+    if (isExitStrategy) {
+      return language === 'es' ? 'SALIDA ESTRATÉGICA' : 'STRATEGIC EXIT';
+    }
     if (language === 'es') {
       switch (ordenesVenta.estrategia) {
         case 'CONSERVADOR': return 'CONSERVADOR';
         case 'BALANCEADO': return 'BALANCEADO';
         case 'REDUCIR': return 'REDUCIR POSICIÓN';
         case 'SALIR': return 'SALIR COMPLETAMENTE';
+        default: return 'BALANCEADO';
       }
     } else {
       switch (ordenesVenta.estrategia) {
@@ -38,6 +49,7 @@ export function SellOrdersPanel({ ordenesVenta, precioActual, precioEntrada }: S
         case 'BALANCEADO': return 'BALANCED';
         case 'REDUCIR': return 'REDUCE POSITION';
         case 'SALIR': return 'EXIT COMPLETELY';
+        default: return 'BALANCED';
       }
     }
   };
@@ -47,9 +59,11 @@ export function SellOrdersPanel({ ordenesVenta, precioActual, precioEntrada }: S
     : 0;
   
   return (
-    <Card className="p-4 border-2 border-danger/50">
-      <h3 className="text-lg font-bold text-danger mb-4 flex items-center gap-2">
-        🎯 {language === 'es' ? 'Take-Profit Escalonado' : 'Scaled Take-Profit'}
+    <Card className={`p-4 border-2 ${isExitStrategy ? 'border-warning/50' : 'border-danger/50'}`}>
+      <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isExitStrategy ? 'text-warning' : 'text-danger'}`}>
+        {isExitStrategy ? '⚠️' : '🎯'} {isExitStrategy 
+          ? (language === 'es' ? 'Salida Estratégica' : 'Strategic Exit')
+          : (language === 'es' ? 'Take-Profit Escalonado' : 'Scaled Take-Profit')}
       </h3>
       
       {/* Strategy Badge */}
