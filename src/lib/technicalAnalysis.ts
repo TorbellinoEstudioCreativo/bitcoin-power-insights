@@ -1,4 +1,5 @@
 // Technical Analysis utilities for trading
+import { EMA } from 'technicalindicators';
 import { CandleData, getOHLCTimeframe } from './historicalData';
 
 export interface NivelSoporte {
@@ -20,15 +21,33 @@ export interface EMAs {
   ema200: number;
 }
 
-// Calculate EMA from price array
+// Calculate EMA using the technicalindicators library (same results as TradingView/Binance)
 export const calcularEMA = (precios: number[], periodo: number): number => {
   if (precios.length === 0) return 0;
-  const k = 2 / (periodo + 1);
-  let ema = precios[0];
-  for (let i = 1; i < precios.length; i++) {
-    ema = precios[i] * k + ema * (1 - k);
+  
+  if (precios.length < periodo) {
+    console.warn(`[EMA] Not enough data for EMA${periodo} (have ${precios.length}, need ${periodo})`);
+    return precios[precios.length - 1] || 0;
   }
-  return ema;
+  
+  // Use the library's EMA calculation (proper SMA initialization + EMA formula)
+  const emaValues = EMA.calculate({ 
+    period: periodo, 
+    values: precios 
+  });
+  
+  // Return the most recent EMA value
+  return emaValues[emaValues.length - 1] || 0;
+};
+
+// Calculate all EMAs at once (more efficient)
+export const calcularTodasEMAs = (precios: number[]): EMAs => {
+  return {
+    ema25: calcularEMA(precios, 25),
+    ema55: calcularEMA(precios, 55),
+    ema99: calcularEMA(precios, 99),
+    ema200: calcularEMA(precios, 200),
+  };
 };
 
 // Generate simulated historical prices for EMA calculation
