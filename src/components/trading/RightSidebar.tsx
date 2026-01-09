@@ -3,6 +3,7 @@ import { Card } from "./Card";
 import { Badge } from "./Badge";
 import { InfoTooltip } from "./InfoTooltip";
 import { AnimatedNumber } from "./AnimatedNumber";
+import { OpportunityScore } from "./OpportunityScore";
 import { PowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 import { BitcoinPriceData } from "@/hooks/useBitcoinPrice";
 import { formatDistanceToNow } from "date-fns";
@@ -126,7 +127,10 @@ export function RightSidebar({ analysis, priceData, isPriceError, dataUpdatedAt 
         </div>
       </Card>
 
-      {/* Card 4: Recomendación IA (Destacada) */}
+      {/* Card 4: Opportunity Score (NEW) */}
+      <OpportunityScore ratio={analysis.ratio} />
+
+      {/* Card 5: Recomendación IA (Destacada) */}
       <Card highlighted>
         <div className="flex items-center gap-2 mb-4">
           <Bot className="w-5 h-5 text-primary" />
