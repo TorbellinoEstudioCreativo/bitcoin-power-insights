@@ -15,13 +15,13 @@ const Index = () => {
   // Portfolio value state with localStorage
   const [portfolioValue, setPortfolioValue] = useState(() => {
     const saved = localStorage.getItem('portfolioValue');
-    return saved ? parseFloat(saved) : 15000;
+    return saved ? parseFloat(saved) : 10000;
   });
 
   // Interest rate state with localStorage
   const [interestRate, setInterestRate] = useState(() => {
     const saved = localStorage.getItem('interestRate');
-    return saved ? parseFloat(saved) : 5.37;
+    return saved ? parseFloat(saved) : 5;
   });
 
   // Persist portfolio value
