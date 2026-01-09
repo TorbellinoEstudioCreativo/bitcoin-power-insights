@@ -6,6 +6,7 @@ import { useTechnicalAnalysis } from "@/hooks/useTechnicalAnalysis";
 import { useTradingOrders, TradingInputs } from "@/hooks/useTradingOrders";
 import { PowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useStablePrice } from "@/hooks/useStablePrice";
 
 interface TradingPanelProps {
   analysis: PowerLawAnalysis;
@@ -50,6 +51,9 @@ export function TradingPanel({ analysis, btcPrice }: TradingPanelProps) {
     return loaded;
   });
   
+  // Get stable price info for recalculation threshold
+  const { shouldRecalculate, isStable, priceChangePercent } = useStablePrice();
+  
   // Persist inputs to localStorage
   useEffect(() => {
     saveTradingInputs(inputs);
@@ -58,13 +62,14 @@ export function TradingPanel({ analysis, btcPrice }: TradingPanelProps) {
   // Get technical analysis
   const { soportes, resistencias } = useTechnicalAnalysis(btcPrice, analysis);
   
-  // Get trading orders
+  // Get trading orders with stability check
   const { ordenesCompra, ordenesVenta } = useTradingOrders(
     btcPrice,
     analysis.ratio,
     soportes,
     resistencias,
-    inputs
+    inputs,
+    shouldRecalculate
   );
   
   const handleInputChange = (field: keyof TradingInputs, value: string) => {
@@ -82,9 +87,35 @@ export function TradingPanel({ analysis, btcPrice }: TradingPanelProps) {
     <div className="space-y-4">
       {/* Inputs Card */}
       <Card className="p-4 border-2 border-primary/50">
-        <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-          📊 {language === 'es' ? 'Tu Posición Actual' : 'Your Current Position'}
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+            📊 {language === 'es' ? 'Tu Posición Actual' : 'Your Current Position'}
+          </h3>
+          
+          {/* Stability Indicator */}
+          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${
+            isStable 
+              ? 'bg-success/20 text-success' 
+              : 'bg-warning/20 text-warning'
+          }`}>
+            <div className={`w-2 h-2 rounded-full ${
+              isStable 
+                ? 'bg-success' 
+                : 'bg-warning animate-pulse'
+            }`} />
+            <span>
+              {isStable 
+                ? (language === 'es' ? 'Estable' : 'Stable')
+                : (language === 'es' ? 'Actualizando...' : 'Updating...')
+              }
+            </span>
+            {Math.abs(priceChangePercent) > 0.01 && (
+              <span className="text-muted-foreground">
+                ({priceChangePercent > 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%)
+              </span>
+            )}
+          </div>
+        </div>
         
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div>
