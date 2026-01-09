@@ -1,12 +1,15 @@
 // Technical Analysis utilities for trading
+import { CandleData, getOHLCTimeframe } from './historicalData';
 
 export interface NivelSoporte {
   precio: number;
-  tipo: 'ema' | 'modelo' | 'fibonacci';
+  tipo: 'ema' | 'modelo' | 'fibonacci' | 'pivot';
   nombre: string;
+  timeframe?: '4H' | '1D' | '1W';
   fuerza: 'alta' | 'media' | 'baja';
   score: number;
   distancia: number; // % desde precio actual
+  toques?: number; // Historical touches for pivots
   razon: string;
 }
 
@@ -69,6 +72,7 @@ export const detectarSoportes = (
       precio: Math.round(emas.ema25),
       tipo: 'ema',
       nombre: 'EMA(25)',
+      timeframe: '1D',
       fuerza: 'alta',
       distancia,
       score: calcularScoreSoporte(distancia),
@@ -82,6 +86,7 @@ export const detectarSoportes = (
       precio: Math.round(emas.ema55),
       tipo: 'ema',
       nombre: 'EMA(55)',
+      timeframe: '1D',
       fuerza: 'alta',
       distancia,
       score: calcularScoreSoporte(distancia),
@@ -95,6 +100,7 @@ export const detectarSoportes = (
       precio: Math.round(emas.ema99),
       tipo: 'ema',
       nombre: 'EMA(99)',
+      timeframe: '1D',
       fuerza: 'media',
       distancia,
       score: calcularScoreSoporte(distancia),
@@ -108,6 +114,7 @@ export const detectarSoportes = (
       precio: Math.round(emas.ema200),
       tipo: 'ema',
       nombre: 'EMA(200)',
+      timeframe: '1D',
       fuerza: 'alta',
       distancia,
       score: calcularScoreSoporte(distancia) + 10, // EMA 200 is very strong
@@ -151,6 +158,7 @@ export const detectarResistencias = (
       precio: Math.round(emas.ema25),
       tipo: 'ema',
       nombre: 'EMA(25)',
+      timeframe: '1D',
       fuerza: 'alta',
       distancia,
       score: calcularScoreResistencia(distancia),
@@ -164,6 +172,7 @@ export const detectarResistencias = (
       precio: Math.round(emas.ema55),
       tipo: 'ema',
       nombre: 'EMA(55)',
+      timeframe: '1D',
       fuerza: 'alta',
       distancia,
       score: calcularScoreResistencia(distancia),
@@ -181,6 +190,7 @@ export const detectarResistencias = (
       precio: Math.round(fib1618),
       tipo: 'fibonacci',
       nombre: 'Fib 1.618',
+      timeframe: '1D',
       fuerza: 'media',
       distancia,
       score: 70,
@@ -248,4 +258,165 @@ export const getOpportunityMessage = (score: number, lang: 'es' | 'en' = 'es'): 
     if (score > 20) return { emoji: '🟡', message: 'Caution - Overvalued' };
     return { emoji: '🔴', message: 'High risk - Consider selling' };
   }
+};
+
+// ===== REAL PIVOT DETECTION FROM OHLC DATA =====
+
+// Count how many times price touched a level (within tolerance)
+const countTouches = (
+  data: CandleData[],
+  targetPrice: number,
+  tolerancePercent: number = 0.5
+): number => {
+  let count = 0;
+  const tolerance = targetPrice * (tolerancePercent / 100);
+  
+  data.forEach(candle => {
+    // Check if low touched the level
+    if (Math.abs(candle.low - targetPrice) < tolerance) count++;
+    // Check if high touched the level
+    if (Math.abs(candle.high - targetPrice) < tolerance) count++;
+  });
+  
+  return count;
+};
+
+// Detect pivot lows (supports) from OHLC data
+export const detectarPivotesSoporte = (
+  ohlcData: CandleData[],
+  precioActual: number
+): NivelSoporte[] => {
+  const pivots: NivelSoporte[] = [];
+  const window = 5; // Compare with 5 candles on each side
+  
+  // Determine timeframe from data
+  const timeframe = getOHLCTimeframe(ohlcData.length, 90);
+  
+  for (let i = window; i < ohlcData.length - window; i++) {
+    const candle = ohlcData[i];
+    let isPivotLow = true;
+    
+    // Check if this is a local minimum
+    for (let j = i - window; j <= i + window; j++) {
+      if (j !== i && ohlcData[j].low < candle.low) {
+        isPivotLow = false;
+        break;
+      }
+    }
+    
+    if (isPivotLow && candle.low < precioActual) {
+      const distancia = ((precioActual - candle.low) / precioActual) * 100;
+      
+      // Only include pivots within 15% distance
+      if (distancia < 15) {
+        const touches = countTouches(ohlcData, candle.low, 0.5);
+        
+        // Only include pivots with at least 2 touches
+        if (touches >= 2) {
+          pivots.push({
+            precio: Math.round(candle.low),
+            tipo: 'pivot',
+            nombre: 'Pivote',
+            timeframe,
+            fuerza: touches >= 4 ? 'alta' : touches >= 3 ? 'media' : 'baja',
+            score: 65 + Math.min(touches * 5, 25),
+            distancia,
+            toques: touches,
+            razon: `Pivote ${timeframe} - ${touches} toques históricos`
+          });
+        }
+      }
+    }
+  }
+  
+  return pivots;
+};
+
+// Detect pivot highs (resistances) from OHLC data
+export const detectarPivotesResistencia = (
+  ohlcData: CandleData[],
+  precioActual: number
+): NivelSoporte[] => {
+  const pivots: NivelSoporte[] = [];
+  const window = 5;
+  
+  const timeframe = getOHLCTimeframe(ohlcData.length, 90);
+  
+  for (let i = window; i < ohlcData.length - window; i++) {
+    const candle = ohlcData[i];
+    let isPivotHigh = true;
+    
+    // Check if this is a local maximum
+    for (let j = i - window; j <= i + window; j++) {
+      if (j !== i && ohlcData[j].high > candle.high) {
+        isPivotHigh = false;
+        break;
+      }
+    }
+    
+    if (isPivotHigh && candle.high > precioActual) {
+      const distancia = ((candle.high - precioActual) / precioActual) * 100;
+      
+      // Only include pivots within 20% distance
+      if (distancia < 20) {
+        const touches = countTouches(ohlcData, candle.high, 0.5);
+        
+        if (touches >= 2) {
+          pivots.push({
+            precio: Math.round(candle.high),
+            tipo: 'pivot',
+            nombre: 'Pivote',
+            timeframe,
+            fuerza: touches >= 4 ? 'alta' : touches >= 3 ? 'media' : 'baja',
+            score: 65 + Math.min(touches * 5, 25),
+            distancia,
+            toques: touches,
+            razon: `Pivote ${timeframe} - ${touches} toques históricos`
+          });
+        }
+      }
+    }
+  }
+  
+  return pivots;
+};
+
+// Merge similar levels (within 0.5% of each other)
+export const fusionarNiveles = (
+  niveles: NivelSoporte[],
+  precioActual: number
+): NivelSoporte[] => {
+  if (niveles.length === 0) return [];
+  
+  const tolerance = precioActual * 0.005; // 0.5%
+  const merged: NivelSoporte[] = [];
+  
+  // Sort by price
+  const sorted = [...niveles].sort((a, b) => a.precio - b.precio);
+  
+  sorted.forEach(nivel => {
+    const similar = merged.find(m => Math.abs(m.precio - nivel.precio) < tolerance);
+    
+    if (similar) {
+      // Merge: keep higher score, combine touches, enhance reason
+      if (nivel.score > similar.score) {
+        similar.score = nivel.score;
+      }
+      if (nivel.toques && similar.toques) {
+        similar.toques = Math.max(nivel.toques, similar.toques);
+      }
+      if (nivel.fuerza === 'alta' || similar.fuerza === 'baja') {
+        similar.fuerza = nivel.fuerza;
+      }
+      // Add indicator if merging EMA with pivot
+      if (nivel.tipo !== similar.tipo) {
+        similar.razon = `${similar.razon} + ${nivel.nombre}`;
+        similar.score += 10; // Confluence bonus
+      }
+    } else {
+      merged.push({ ...nivel });
+    }
+  });
+  
+  return merged;
 };

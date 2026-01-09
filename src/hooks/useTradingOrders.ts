@@ -6,6 +6,8 @@ export interface OrdenCompra {
   precio: number;
   tipo: string;
   nombre: string;
+  timeframe?: '4H' | '1D' | '1W';
+  toques?: number;
   montoUSDT: number;
   btcAmount: number;
   distancia: number;
@@ -18,6 +20,8 @@ export interface OrdenVenta {
   precio: number;
   tipo: string;
   nombre: string;
+  timeframe?: '4H' | '1D' | '1W';
+  toques?: number;
   porcentaje: number;
   cantidadUSDT: number;
   gananciaUSD: number;
@@ -232,6 +236,8 @@ function calcularOrdenesCompra(
       precio: soporte.precio,
       tipo: soporte.tipo,
       nombre: soporte.nombre,
+      timeframe: soporte.timeframe,
+      toques: soporte.toques,
       montoUSDT: Math.round(montoUSDT),
       btcAmount,
       distancia: soporte.distancia,
@@ -395,6 +401,8 @@ function calcularOrdenesVenta(
         precio: resistencia.precio,
         tipo: resistencia.tipo,
         nombre: resistencia.nombre,
+        timeframe: resistencia.timeframe,
+        toques: resistencia.toques,
         porcentaje,
         cantidadUSDT: Math.round(cantidadUSDT),
         gananciaUSD: Math.round(gananciaUSD),
