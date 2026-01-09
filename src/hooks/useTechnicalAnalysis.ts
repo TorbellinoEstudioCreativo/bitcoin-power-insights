@@ -7,6 +7,7 @@ import {
   EMAs,
   NivelSoporte,
 } from '@/lib/technicalAnalysis';
+import { suavizarNiveles } from '@/lib/levelSmoothing';
 import { PowerLawAnalysis } from './usePowerLawAnalysis';
 
 export interface TechnicalAnalysisResult {
@@ -32,14 +33,18 @@ export function useTechnicalAnalysis(
       ema200: calcularEMA(preciosHistoricos, 200),
     };
     
-    // Detect support and resistance levels
-    const soportes = detectarSoportes(btcPrice, emas, analysis.piso);
-    const resistencias = detectarResistencias(
+    // Detect support and resistance levels (raw)
+    const soportesCrudos = detectarSoportes(btcPrice, emas, analysis.piso);
+    const resistenciasCrudas = detectarResistencias(
       btcPrice, 
       emas, 
       analysis.techo, 
       analysis.precioModelo
     );
+    
+    // Apply smoothing to prevent UI flickering
+    const soportes = suavizarNiveles(soportesCrudos, 'soportes');
+    const resistencias = suavizarNiveles(resistenciasCrudas, 'resistencias');
     
     return { emas, soportes, resistencias };
   }, [btcPrice, analysis.piso, analysis.techo, analysis.precioModelo]);
