@@ -1,4 +1,4 @@
-import { Target, AlertTriangle, Bell, Trash2 } from "lucide-react";
+import { Target, AlertTriangle, Bell, Trash2, TrendingUp, TrendingDown, Activity, Shield } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,12 +17,22 @@ const alertIcons: Record<AlertType, React.ReactNode> = {
   price_target: <Target className="w-4 h-4 text-primary" />,
   stop_loss: <AlertTriangle className="w-4 h-4 text-yellow-500" />,
   margin_call: <Bell className="w-4 h-4 text-destructive" />,
+  cycle_bottom: <Activity className="w-4 h-4 text-green-500" />,
+  cycle_top: <Activity className="w-4 h-4 text-red-500" />,
+  golden_cross: <TrendingUp className="w-4 h-4 text-green-500" />,
+  death_cross: <TrendingDown className="w-4 h-4 text-red-500" />,
+  corridor_breach: <Shield className="w-4 h-4 text-orange-500" />,
 };
 
 const alertTypeLabels: Record<AlertType, string> = {
   price_target: 'Precio Objetivo',
   stop_loss: 'Stop-Loss',
   margin_call: 'Margin Call',
+  cycle_bottom: 'Bottom de Ciclo',
+  cycle_top: 'Top de Ciclo',
+  golden_cross: 'Golden Cross PL',
+  death_cross: 'Death Cross PL',
+  corridor_breach: 'Salida de Corredor',
 };
 
 export function AlertItem({ alert, onToggle, onDelete, onReset }: AlertItemProps) {

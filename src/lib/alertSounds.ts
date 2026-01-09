@@ -71,14 +71,26 @@ export async function playAlertSound(type: SoundType): Promise<void> {
   }
 }
 
-export function getSoundTypeForAlert(alertType: 'price_target' | 'stop_loss' | 'margin_call'): SoundType {
+export function getSoundTypeForAlert(alertType: string): SoundType {
   switch (alertType) {
+    // Alertas positivas - sonido 'success'
     case 'price_target':
+    case 'cycle_bottom':
+    case 'golden_cross':
       return 'success';
-    case 'margin_call':
-      return 'danger';
+    
+    // Alertas de advertencia - sonido 'warning'
     case 'stop_loss':
-    default:
+    case 'corridor_breach':
       return 'warning';
+    
+    // Alertas de peligro - sonido 'danger'
+    case 'margin_call':
+    case 'cycle_top':
+    case 'death_cross':
+      return 'danger';
+    
+    default:
+      return 'success';
   }
 }
