@@ -155,3 +155,57 @@ export function getOHLCTimeframe(candleCount: number, days: number): '4H' | '1D'
   if (candlesPerDay >= 0.9) return '1D';
   return '1W';
 }
+
+// ===== BINANCE API - More accurate for trading =====
+
+const CACHE_KEY_BINANCE = 'binance-klines';
+
+// Fetch OHLC data from Binance (more accurate for trading)
+export async function fetchBinanceKlines(
+  symbol: string = 'BTCUSDT',
+  interval: '1d' | '1w' | '4h' = '1d',
+  limit: number = 250
+): Promise<CandleData[]> {
+  const cacheKey = `${CACHE_KEY_BINANCE}-${symbol}-${interval}-${limit}`;
+  
+  // Check cache first
+  const cached = getCachedData<CandleData[]>(cacheKey);
+  if (cached) {
+    console.log(`[HistoricalData] Using cached Binance ${interval} data`);
+    return cached;
+  }
+  
+  console.log(`[HistoricalData] Fetching ${limit} ${interval} candles from Binance...`);
+  
+  try {
+    const response = await fetch(
+      `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      { headers: { 'Accept': 'application/json' } }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Binance API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Binance klines format: [openTime, open, high, low, close, volume, closeTime, ...]
+    const candles: CandleData[] = data.map((kline: any[]) => ({
+      timestamp: kline[0],
+      open: parseFloat(kline[1]),
+      high: parseFloat(kline[2]),
+      low: parseFloat(kline[3]),
+      close: parseFloat(kline[4]),
+      volume: parseFloat(kline[5])
+    }));
+    
+    // Save to cache
+    saveToCache(cacheKey, candles);
+    console.log(`[HistoricalData] Fetched ${candles.length} Binance candles`);
+    
+    return candles;
+  } catch (error) {
+    console.error('[HistoricalData] Error fetching Binance data:', error);
+    throw error;
+  }
+}

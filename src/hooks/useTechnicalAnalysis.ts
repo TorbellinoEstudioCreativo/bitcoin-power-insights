@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import {
-  calcularEMA,
+  calcularTodasEMAs,
   generarPreciosSimulados,
   detectarSoportes,
   detectarResistencias,
@@ -20,14 +20,15 @@ export interface TechnicalAnalysisResult {
   resistencias: NivelSoporte[];
   isLoadingHistorical: boolean;
   usingRealData: boolean;
+  dataSource: 'Binance' | 'CoinGecko' | 'Simulated';
 }
 
 export function useTechnicalAnalysis(
   btcPrice: number,
   analysis: PowerLawAnalysis
 ): TechnicalAnalysisResult {
-  // Fetch real historical data from CoinGecko
-  const { historicalData, ohlcData, isLoading } = useHistoricalData();
+  // Fetch real historical data (Binance preferred, CoinGecko fallback)
+  const { historicalData, ohlcData, isLoading, source } = useHistoricalData();
   
   return useMemo(() => {
     // Use REAL historical prices if available, fallback to simulated
@@ -36,20 +37,22 @@ export function useTechnicalAnalysis(
       : generarPreciosSimulados(btcPrice, 250);
     
     const usingRealData = !!(historicalData?.prices && historicalData.prices.length >= 200);
+    const dataSource: 'Binance' | 'CoinGecko' | 'Simulated' = usingRealData 
+      ? (source === 'None' ? 'Simulated' : source) 
+      : 'Simulated';
     
-    if (usingRealData) {
-      console.log('[TechnicalAnalysis] Using REAL historical data from CoinGecko');
-    } else {
-      console.log('[TechnicalAnalysis] Using simulated data (fallback)');
-    }
+    // Calculate all EMAs using the technicalindicators library
+    const emas = calcularTodasEMAs(preciosHistoricos);
     
-    // Calculate all EMAs from real/simulated prices
-    const emas: EMAs = {
-      ema25: calcularEMA(preciosHistoricos, 25),
-      ema55: calcularEMA(preciosHistoricos, 55),
-      ema99: calcularEMA(preciosHistoricos, 99),
-      ema200: calcularEMA(preciosHistoricos, 200),
-    };
+    // ===== DEBUG: Verify EMAs match TradingView/Binance =====
+    console.log(`[TechnicalAnalysis] Data source: ${dataSource}`);
+    console.log(`[TechnicalAnalysis] Prices available: ${preciosHistoricos.length}`);
+    console.log('[TechnicalAnalysis] EMAs calculated (verify in Binance/TradingView):');
+    console.log(`  EMA25:  $${emas.ema25.toFixed(2)}`);
+    console.log(`  EMA55:  $${emas.ema55.toFixed(2)}`);
+    console.log(`  EMA99:  $${emas.ema99.toFixed(2)}`);
+    console.log(`  EMA200: $${emas.ema200.toFixed(2)}`);
+    console.log(`  Current price: $${btcPrice.toFixed(2)}`);
     
     // Detect EMA-based support and resistance levels
     const soportesEMA = detectarSoportes(btcPrice, emas, analysis.piso);
@@ -92,7 +95,8 @@ export function useTechnicalAnalysis(
       soportes, 
       resistencias, 
       isLoadingHistorical: isLoading,
-      usingRealData 
+      usingRealData,
+      dataSource
     };
-  }, [btcPrice, analysis.piso, analysis.techo, analysis.precioModelo, historicalData, ohlcData, isLoading]);
+  }, [btcPrice, analysis.piso, analysis.techo, analysis.precioModelo, historicalData, ohlcData, isLoading, source]);
 }
