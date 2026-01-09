@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { playAlertSound, getSoundTypeForAlert } from "@/lib/alertSounds";
 
-export type AlertType = 'price_target' | 'stop_loss' | 'margin_call';
+export type AlertType = 'price_target' | 'stop_loss' | 'margin_call' | 'cycle_bottom' | 'cycle_top' | 'golden_cross' | 'death_cross' | 'corridor_breach';
 export type AlertDirection = 'above' | 'below';
 
 export interface Alert {
@@ -65,6 +65,16 @@ function getNotificationMessage(alert: Alert): string {
       return `⚠️ Stop-Loss activado en ${priceFormatted}`;
     case 'margin_call':
       return `🚨 ALERTA: Precio cerca de Margin Call!`;
+    case 'cycle_bottom':
+      return `🟢 Posible bottom de ciclo - Ratio histórico alcanzado`;
+    case 'cycle_top':
+      return `🔴 Posible top de ciclo - Considerar tomar ganancias`;
+    case 'golden_cross':
+      return `📈 Golden Cross Power Law - Inicio de bull run`;
+    case 'death_cross':
+      return `📉 Death Cross Power Law - Inicio de bear market`;
+    case 'corridor_breach':
+      return `⚠️ Bitcoin fuera del corredor histórico`;
     default:
       return `Alerta disparada: ${priceFormatted}`;
   }

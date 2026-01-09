@@ -5,7 +5,9 @@ import { InfoTooltip } from "./InfoTooltip";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { PowerLawAnalysis, Estrategia } from "@/hooks/usePowerLawAnalysis";
 import { PowerLawChart } from "./PowerLawChart";
-
+import { SupportResistancePanel } from "./SupportResistancePanel";
+import { TradingPanel } from "./TradingPanel";
+import { useTechnicalAnalysis } from "@/hooks/useTechnicalAnalysis";
 interface MainContentProps {
   analysis: PowerLawAnalysis;
   btcPrice: number;
@@ -14,6 +16,9 @@ interface MainContentProps {
 
 export function MainContent({ analysis, btcPrice, interestRate = 5.37 }: MainContentProps) {
   const [estrategia, setEstrategia] = useState<Estrategia>(analysis.estrategiaRecomendada);
+  
+  // Get technical analysis for support/resistance
+  const { soportes, resistencias } = useTechnicalAnalysis(btcPrice, analysis);
 
   // Auto-select recommended strategy when ratio changes significantly
   useEffect(() => {
@@ -43,10 +48,24 @@ export function MainContent({ analysis, btcPrice, interestRate = 5.37 }: MainCon
   return (
     <main className="flex-1 p-6 overflow-y-auto">
       {/* Power Law Chart */}
-      <Card className="p-6 mb-8">
+      <Card className="p-6 mb-6">
         <h2 className="text-xl font-bold text-foreground mb-4">Gráfico Power Law</h2>
         <PowerLawChart analysis={analysis} btcPrice={btcPrice} />
       </Card>
+      
+      {/* Support & Resistance Panel (NEW) */}
+      <div className="mb-6">
+        <SupportResistancePanel 
+          soportes={soportes}
+          resistencias={resistencias}
+          precioActual={btcPrice}
+        />
+      </div>
+      
+      {/* Active Trading Panel (NEW) */}
+      <div className="mb-6">
+        <TradingPanel analysis={analysis} btcPrice={btcPrice} />
+      </div>
 
       {/* Risk Section */}
       <div className="space-y-6">
