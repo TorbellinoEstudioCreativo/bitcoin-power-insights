@@ -109,21 +109,22 @@ export const detectarSoportes = (
     });
   }
   
-  // Add model floor as support
-  if (pisoModelo < precioActual) {
-    const distancia = ((precioActual - pisoModelo) / precioActual) * 100;
-    soportes.push({
-      precio: Math.round(pisoModelo),
-      tipo: 'modelo',
-      nombre: 'Piso 0.5x',
-      fuerza: 'alta',
-      distancia,
-      score: Math.max(100 - distancia * 2, 30),
-      razon: 'Piso histórico del modelo Power Law'
-    });
-  }
+  // Model floor (Piso 0.5x) excluded - too far for swing trading
   
-  return soportes
+  // Filter: remove duplicates (prices within 0.5% of each other)
+  const soportesFiltrados = soportes
+    .sort((a, b) => b.precio - a.precio) // Sort by price descending
+    .filter((soporte, idx, arr) => {
+      if (idx === 0) return true;
+      const prevSoporte = arr[idx - 1];
+      const diferencia = Math.abs(soporte.precio - prevSoporte.precio) / precioActual;
+      return diferencia > 0.005; // Keep only if >0.5% different
+    });
+  
+  // Filter: only nearby levels (<15% distance)
+  const soportesCercanos = soportesFiltrados.filter(s => s.distancia < 15);
+  
+  return soportesCercanos
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
 };
@@ -164,19 +165,7 @@ export const detectarResistencias = (
     });
   }
   
-  // Add model price as target if above current
-  if (precioModelo > precioActual) {
-    const distancia = ((precioModelo - precioActual) / precioActual) * 100;
-    resistencias.push({
-      precio: Math.round(precioModelo),
-      tipo: 'modelo',
-      nombre: 'Fair Value',
-      fuerza: 'media',
-      distancia,
-      score: 85,
-      razon: 'Precio justo según Power Law'
-    });
-  }
+  // Fair Value excluded - already shown in main card above
   
   // Add Fibonacci levels as resistance targets
   const fib1618 = precioActual * 1.618;
@@ -193,19 +182,22 @@ export const detectarResistencias = (
     });
   }
   
-  // Add model ceiling as ultimate target
-  const distanciaTecho = ((techoModelo - precioActual) / precioActual) * 100;
-  resistencias.push({
-    precio: Math.round(techoModelo),
-    tipo: 'modelo',
-    nombre: 'Techo 3x',
-    fuerza: 'alta',
-    distancia: distanciaTecho,
-    score: 60,
-    razon: 'Techo histórico del modelo Power Law'
-  });
+  // Techo 3x excluded - too far for swing trading
   
-  return resistencias
+  // Filter: remove duplicates (prices within 0.5% of each other)
+  const resistenciasFiltradas = resistencias
+    .sort((a, b) => a.precio - b.precio) // Sort by price ascending
+    .filter((res, idx, arr) => {
+      if (idx === 0) return true;
+      const prevRes = arr[idx - 1];
+      const diferencia = Math.abs(res.precio - prevRes.precio) / precioActual;
+      return diferencia > 0.005; // Keep only if >0.5% different
+    });
+  
+  // Filter: only nearby levels (<20% distance)
+  const resistenciasCercanas = resistenciasFiltradas.filter(r => r.distancia < 20);
+  
+  return resistenciasCercanas
     .sort((a, b) => a.precio - b.precio)
     .slice(0, 5);
 };
