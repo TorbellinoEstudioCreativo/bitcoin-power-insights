@@ -29,19 +29,25 @@ export const calcularEMA = (precios: number[], periodo: number): number => {
 };
 
 // Generate simulated historical prices for EMA calculation
+// Uses seeded random to ensure stability - same price range = same EMAs
 export const generarPreciosSimulados = (precioActual: number, dias: number): number[] => {
   const precios: number[] = [];
-  // Simulate price movement backwards from current price
-  // Using realistic BTC volatility (~2-3% daily moves)
   let precio = precioActual;
   
+  // Seed based on price rounded to $1000 - prices within $1000 get same EMAs
+  const seed = Math.floor(precioActual / 1000);
+  
+  // Seeded random function for deterministic results
+  const seededRandom = (n: number): number => {
+    const x = Math.sin(seed + n) * 10000;
+    return x - Math.floor(x);
+  };
+  
   for (let i = dias; i >= 0; i--) {
-    // Add to beginning so array goes from oldest to newest
     precios.unshift(precio);
-    // Random walk backwards with slight downward bias (BTC trends up)
-    const volatilidad = 0.025; // 2.5% daily volatility
-    const tendencia = 0.0005; // Slight upward trend
-    const cambio = (Math.random() - 0.5) * volatilidad * 2 - tendencia;
+    const volatilidad = 0.025;
+    const tendencia = 0.0005;
+    const cambio = (seededRandom(i) - 0.5) * volatilidad * 2 - tendencia;
     precio = precio * (1 - cambio);
   }
   
