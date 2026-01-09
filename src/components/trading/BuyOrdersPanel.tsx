@@ -76,14 +76,24 @@ export function BuyOrdersPanel({ ordenesCompra, precioActual }: BuyOrdersPanelPr
               className="p-3 rounded-lg bg-success/10 border border-success/30"
             >
               <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-bold text-success">#{orden.nivel}</span>
                   <span className="text-sm font-bold text-foreground">
                     ${orden.precio.toLocaleString()}
                   </span>
+                  {orden.timeframe && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-info/20 text-info">
+                      [{orden.timeframe}]
+                    </span>
+                  )}
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary">
                     {orden.nombre}
                   </span>
+                  {orden.toques && orden.toques > 0 && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {orden.toques} {language === 'es' ? 'toques' : 'touches'}
+                    </span>
+                  )}
                 </div>
                 <div className="text-right">
                   <div className="text-xs text-success font-bold">
