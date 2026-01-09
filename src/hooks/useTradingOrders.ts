@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { NivelSoporte } from '@/lib/technicalAnalysis';
 
 export interface OrdenCompra {
@@ -45,22 +45,106 @@ export interface TradingInputs {
   precioEntrada: number;
 }
 
+/**
+ * Suaviza un precio aplicando peso exponencial (70% anterior, 30% nuevo)
+ * Solo aplica si el cambio es menor al umbral (2%)
+ */
+function smoothPrice(prevPrice: number, newPrice: number, weight: number = 0.7, threshold: number = 0.02): number {
+  if (prevPrice === 0) return newPrice;
+  
+  const change = Math.abs((newPrice - prevPrice) / prevPrice);
+  
+  // Si el cambio es mayor al umbral, usar precio nuevo directamente
+  if (change > threshold) {
+    return newPrice;
+  }
+  
+  // Aplicar suavizado exponencial
+  return Math.round(prevPrice * weight + newPrice * (1 - weight));
+}
+
+/**
+ * Suaviza órdenes de compra comparando con las anteriores
+ */
+function smoothBuyOrders(
+  newOrders: OrdenCompra[],
+  prevOrders: OrdenCompra[] | null
+): OrdenCompra[] {
+  if (!prevOrders || prevOrders.length === 0) return newOrders;
+  
+  return newOrders.map((order, idx) => {
+    const prevOrder = prevOrders[idx];
+    if (!prevOrder) return order;
+    
+    return {
+      ...order,
+      precio: smoothPrice(prevOrder.precio, order.precio),
+      montoUSDT: smoothPrice(prevOrder.montoUSDT, order.montoUSDT),
+    };
+  });
+}
+
+/**
+ * Suaviza órdenes de venta comparando con las anteriores
+ */
+function smoothSellOrders(
+  newOrders: OrdenVenta[],
+  prevOrders: OrdenVenta[] | null
+): OrdenVenta[] {
+  if (!prevOrders || prevOrders.length === 0) return newOrders;
+  
+  return newOrders.map((order, idx) => {
+    const prevOrder = prevOrders[idx];
+    if (!prevOrder) return order;
+    
+    return {
+      ...order,
+      precio: smoothPrice(prevOrder.precio, order.precio),
+      gananciaUSD: smoothPrice(prevOrder.gananciaUSD, order.gananciaUSD),
+      cantidadUSDT: smoothPrice(prevOrder.cantidadUSDT, order.cantidadUSDT),
+    };
+  });
+}
+
 export function useTradingOrders(
   precioActual: number,
   ratio: number,
   soportes: NivelSoporte[],
   resistencias: NivelSoporte[],
-  inputs: TradingInputs
+  inputs: TradingInputs,
+  shouldRecalculate: boolean = true
 ) {
+  // Mantener referencia a órdenes anteriores para suavizado
+  const prevOrdenesCompraRef = useRef<OrdenCompra[] | null>(null);
+  const prevOrdenesVentaRef = useRef<OrdenVenta[] | null>(null);
+  
   return useMemo(() => {
-    const ordenesCompra = calcularOrdenesCompra(
+    // Si no debe recalcular y tenemos órdenes anteriores, devolverlas
+    if (!shouldRecalculate && prevOrdenesCompraRef.current && prevOrdenesVentaRef.current) {
+      return {
+        ordenesCompra: {
+          recomendacion: 'COMPRAR_EN_NIVELES' as const,
+          razon: 'Niveles estables',
+          ordenes: prevOrdenesCompraRef.current
+        },
+        ordenesVenta: {
+          estrategia: 'BALANCEADO' as const,
+          ordenes: prevOrdenesVentaRef.current,
+          totalGanancia: prevOrdenesVentaRef.current.reduce((sum, o) => sum + o.gananciaUSD, 0),
+          porcentajeTotal: prevOrdenesVentaRef.current.reduce((sum, o) => sum + o.porcentaje, 0)
+        }
+      };
+    }
+    
+    // Calcular nuevas órdenes
+    const rawOrdenesCompra = calcularOrdenesCompra(
       precioActual,
       ratio,
       soportes,
       inputs.usdtDisponibles
     );
     
-    const ordenesVenta = calcularOrdenesVenta(
+    const rawOrdenesVenta = calcularOrdenesVenta(
       precioActual,
       inputs.precioEntrada,
       inputs.tamañoPosicion,
@@ -68,8 +152,31 @@ export function useTradingOrders(
       resistencias
     );
     
-    return { ordenesCompra, ordenesVenta };
-  }, [precioActual, ratio, soportes, resistencias, inputs]);
+    // Aplicar suavizado
+    const smoothedBuyOrders = smoothBuyOrders(rawOrdenesCompra.ordenes, prevOrdenesCompraRef.current);
+    const smoothedSellOrders = smoothSellOrders(rawOrdenesVenta.ordenes, prevOrdenesVentaRef.current);
+    
+    // Actualizar referencias
+    prevOrdenesCompraRef.current = smoothedBuyOrders;
+    prevOrdenesVentaRef.current = smoothedSellOrders;
+    
+    // Recalcular totales con órdenes suavizadas
+    const totalGanancia = smoothedSellOrders.reduce((sum, o) => sum + o.gananciaUSD, 0);
+    const porcentajeTotal = smoothedSellOrders.reduce((sum, o) => sum + o.porcentaje, 0);
+    
+    return {
+      ordenesCompra: {
+        ...rawOrdenesCompra,
+        ordenes: smoothedBuyOrders
+      },
+      ordenesVenta: {
+        ...rawOrdenesVenta,
+        ordenes: smoothedSellOrders,
+        totalGanancia,
+        porcentajeTotal
+      }
+    };
+  }, [precioActual, ratio, soportes, resistencias, inputs, shouldRecalculate]);
 }
 
 function calcularOrdenesCompra(
