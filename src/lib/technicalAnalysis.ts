@@ -4,14 +4,17 @@ import { CandleData, getOHLCTimeframe } from './historicalData';
 
 export interface NivelSoporte {
   precio: number;
-  tipo: 'ema' | 'modelo' | 'fibonacci' | 'pivot';
+  tipo: 'ema' | 'modelo' | 'fibonacci' | 'pivot' | 'redondo';
   nombre: string;
-  timeframe?: '4H' | '1D' | '1W';
+  timeframe?: '4H' | '1D' | '1W' | 'PSYCH';
   fuerza: 'alta' | 'media' | 'baja';
   score: number;
   distancia: number; // % desde precio actual
   toques?: number; // Historical touches for pivots
   razon: string;
+  // Confluence tracking
+  indicadores?: Array<{ nombre: string; timeframe?: string }>;
+  esConfluencia?: boolean;
 }
 
 export interface EMAs {
@@ -400,42 +403,80 @@ export const detectarPivotesResistencia = (
   return pivots;
 };
 
-// Merge similar levels (within 0.5% of each other)
+// Merge similar levels (within 0.5% of each other) - tracks multiple indicators for confluence
 export const fusionarNiveles = (
   niveles: NivelSoporte[],
-  precioActual: number
+  precioActual: number,
+  tolerancia: number = 0.005 // 0.5%
 ): NivelSoporte[] => {
   if (niveles.length === 0) return [];
   
-  const tolerance = precioActual * 0.005; // 0.5%
-  const merged: NivelSoporte[] = [];
+  const fusionados: NivelSoporte[] = [];
   
   // Sort by price
   const sorted = [...niveles].sort((a, b) => a.precio - b.precio);
   
   sorted.forEach(nivel => {
-    const similar = merged.find(m => Math.abs(m.precio - nivel.precio) < tolerance);
+    // Find similar existing level
+    const similar = fusionados.find(m => 
+      Math.abs(m.precio - nivel.precio) / precioActual < tolerancia
+    );
     
     if (similar) {
-      // Merge: keep higher score, combine touches, enhance reason
-      if (nivel.score > similar.score) {
-        similar.score = nivel.score;
+      // MERGE: Add indicator to array
+      if (!similar.indicadores) {
+        similar.indicadores = [{ 
+          nombre: similar.nombre, 
+          timeframe: similar.timeframe 
+        }];
       }
-      if (nivel.toques && similar.toques) {
-        similar.toques = Math.max(nivel.toques, similar.toques);
+      
+      // Don't add duplicate indicators
+      const alreadyHas = similar.indicadores.some(
+        ind => ind.nombre === nivel.nombre && ind.timeframe === nivel.timeframe
+      );
+      
+      if (!alreadyHas) {
+        similar.indicadores.push({ 
+          nombre: nivel.nombre, 
+          timeframe: nivel.timeframe 
+        });
       }
+      
+      // Mark as confluence
+      similar.esConfluencia = similar.indicadores.length > 1;
+      
+      // Accumulate touches
+      if (nivel.toques) {
+        similar.toques = (similar.toques || 0) + nivel.toques;
+      }
+      
+      // Confluence bonus (+10 per extra indicator)
+      similar.score += 10;
+      
+      // Keep higher strength
       if (nivel.fuerza === 'alta' || similar.fuerza === 'baja') {
         similar.fuerza = nivel.fuerza;
       }
-      // Add indicator if merging EMA with pivot
-      if (nivel.tipo !== similar.tipo) {
-        similar.razon = `${similar.razon} + ${nivel.nombre}`;
-        similar.score += 10; // Confluence bonus
-      }
+      
+      // Update price to average
+      const totalIndicators = similar.indicadores.length;
+      similar.precio = Math.round(
+        (similar.precio * (totalIndicators - 1) + nivel.precio) / totalIndicators
+      );
+      
+      // Update distance
+      similar.distancia = Math.abs((precioActual - similar.precio) / precioActual) * 100;
+      
     } else {
-      merged.push({ ...nivel });
+      // NEW LEVEL: Initialize with single indicator
+      fusionados.push({
+        ...nivel,
+        indicadores: [{ nombre: nivel.nombre, timeframe: nivel.timeframe }],
+        esConfluencia: false
+      });
     }
   });
   
-  return merged;
+  return fusionados;
 };
