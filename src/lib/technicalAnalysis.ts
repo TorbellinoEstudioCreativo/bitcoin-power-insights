@@ -351,13 +351,16 @@ export const detectarPivotesSoporte = (
     }
   }
   
-  // Deduplicate pivots with same rounded price
+  // Deduplicate pivots within 0.5% of each other (not just exact price)
   const deduplicados = pivots.reduce((acc, pivot) => {
-    const existing = acc.find(p => p.precio === pivot.precio);
+    const existing = acc.find(p => 
+      Math.abs(p.precio - pivot.precio) / pivot.precio < 0.005 // 0.5% tolerance
+    );
     if (existing) {
-      // Merge: keep higher touches count and score
-      existing.toques = Math.max(existing.toques || 0, pivot.toques || 0);
+      // Merge: accumulate touches, keep higher score, average price
+      existing.toques = (existing.toques || 0) + (pivot.toques || 0);
       existing.score = Math.max(existing.score, pivot.score);
+      existing.precio = Math.round((existing.precio + pivot.precio) / 2);
     } else {
       acc.push(pivot);
     }
@@ -413,12 +416,16 @@ export const detectarPivotesResistencia = (
     }
   }
   
-  // Deduplicate pivots with same rounded price
+  // Deduplicate pivots within 0.5% of each other (not just exact price)
   const deduplicados = pivots.reduce((acc, pivot) => {
-    const existing = acc.find(p => p.precio === pivot.precio);
+    const existing = acc.find(p => 
+      Math.abs(p.precio - pivot.precio) / pivot.precio < 0.005 // 0.5% tolerance
+    );
     if (existing) {
-      existing.toques = Math.max(existing.toques || 0, pivot.toques || 0);
+      // Merge: accumulate touches, keep higher score, average price
+      existing.toques = (existing.toques || 0) + (pivot.toques || 0);
       existing.score = Math.max(existing.score, pivot.score);
+      existing.precio = Math.round((existing.precio + pivot.precio) / 2);
     } else {
       acc.push(pivot);
     }
