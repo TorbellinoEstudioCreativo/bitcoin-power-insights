@@ -6,13 +6,16 @@ export interface OrdenCompra {
   precio: number;
   tipo: string;
   nombre: string;
-  timeframe?: '4H' | '1D' | '1W';
+  timeframe?: '4H' | '1D' | '1W' | 'PSYCH';
   toques?: number;
   montoUSDT: number;
   btcAmount: number;
   distancia: number;
   score: number;
   razon: string;
+  // Confluence tracking
+  indicadores?: Array<{ nombre: string; timeframe?: string }>;
+  esConfluencia?: boolean;
 }
 
 export interface OrdenVenta {
@@ -20,13 +23,16 @@ export interface OrdenVenta {
   precio: number;
   tipo: string;
   nombre: string;
-  timeframe?: '4H' | '1D' | '1W';
+  timeframe?: '4H' | '1D' | '1W' | 'PSYCH';
   toques?: number;
   porcentaje: number;
   cantidadUSDT: number;
   gananciaUSD: number;
   retorno: number;
   razon: string;
+  // Confluence tracking
+  indicadores?: Array<{ nombre: string; timeframe?: string }>;
+  esConfluencia?: boolean;
 }
 
 export interface OrdenesCompraResult {
@@ -235,14 +241,17 @@ function calcularOrdenesCompra(
       nivel: idx + 1,
       precio: soporte.precio,
       tipo: soporte.tipo,
-      nombre: soporte.nombre,
+      nombre: soporte.esConfluencia ? `Confluencia (${soporte.indicadores?.length || 1})` : soporte.nombre,
       timeframe: soporte.timeframe,
       toques: soporte.toques,
       montoUSDT: Math.round(montoUSDT),
       btcAmount,
       distancia: soporte.distancia,
       score: soporte.score,
-      razon: soporte.razon
+      razon: soporte.razon,
+      // Pass confluence data
+      indicadores: soporte.indicadores,
+      esConfluencia: soporte.esConfluencia
     };
   });
   
@@ -257,7 +266,38 @@ function calcularOrdenesCompra(
   };
 }
 
-// Generate exit strategy levels when in loss
+// Generate fallback resistances from EMAs when no technical resistances exist
+function generateFallbackResistances(
+  precioActual: number
+): Array<{ precio: number; nombre: string; tipo: string; timeframe: '1D' | 'PSYCH'; razon: string; distancia: number }> {
+  const resistencias: Array<any> = [];
+  
+  // Add round number levels as psychological resistances
+  const nivelesRedondos = [95000, 100000, 105000, 110000, 115000, 120000];
+  
+  nivelesRedondos.forEach(nivel => {
+    if (nivel > precioActual && nivel < precioActual * 1.25) {
+      const distancia = ((nivel - precioActual) / precioActual) * 100;
+      resistencias.push({
+        precio: nivel,
+        nombre: `$${nivel / 1000}K`,
+        tipo: 'redondo',
+        timeframe: 'PSYCH' as const,
+        distancia,
+        razon: nivel === 100000 
+          ? 'Nivel psicológico principal - 100K' 
+          : `Resistencia psicológica ${nivel / 1000}K`
+      });
+    }
+  });
+  
+  // Sort by proximity (closest first)
+  return resistencias
+    .sort((a, b) => a.precio - b.precio)
+    .slice(0, 5);
+}
+
+// Generate exit strategy levels when in loss - uses real levels instead of math percentages
 function generateExitStrategy(
   precioActual: number,
   precioEntrada: number,
@@ -266,8 +306,8 @@ function generateExitStrategy(
 ): OrdenesVentaResult {
   const lossPercent = Math.abs(currentPL);
   
-  // Targets: rebounds above current price
-  const targets = [2, 4, 6, 8, 10];
+  // Get real resistance levels
+  const resistenciasReales = generateFallbackResistances(precioActual);
   
   // % to sell based on loss magnitude
   let percentages: number[];
@@ -279,27 +319,29 @@ function generateExitStrategy(
     percentages = [10, 10, 10, 10, 0]; // Exit 40%
   }
   
-  const ordenes: OrdenVenta[] = targets
+  const ordenes: OrdenVenta[] = resistenciasReales
     .slice(0, percentages.filter(p => p > 0).length)
-    .map((targetPct, idx) => {
-      const targetPrice = Math.round(precioActual * (1 + targetPct / 100));
+    .map((resistencia, idx) => {
       const porcentaje = percentages[idx];
       const cantidadUSDT = tamañoPosicion * (porcentaje / 100);
       const retorno = precioEntrada > 0 
-        ? ((targetPrice - precioEntrada) / precioEntrada) * 100
+        ? ((resistencia.precio - precioEntrada) / precioEntrada) * 100
         : 0;
       const gananciaUSD = Math.round(cantidadUSDT * (retorno / 100));
       
       return {
         nivel: idx + 1,
-        precio: targetPrice,
-        tipo: 'salida',
-        nombre: `+${targetPct}%`,
+        precio: resistencia.precio,
+        tipo: resistencia.tipo,
+        nombre: resistencia.nombre,
+        timeframe: resistencia.timeframe,
         porcentaje,
         cantidadUSDT: Math.round(cantidadUSDT),
         gananciaUSD,
         retorno,
-        razon: retorno < 0 ? 'Minimizar pérdida' : 'Recuperar posición'
+        razon: resistencia.razon,
+        indicadores: [{ nombre: resistencia.nombre, timeframe: resistencia.timeframe }],
+        esConfluencia: false
       };
     });
   
@@ -350,30 +392,33 @@ function calcularOrdenesVenta(
     porcentajes = [25, 25, 25, 25]; // 100% total
   }
   
-  // If no resistances, generate default levels based on percentage
+  // If no resistances, generate real levels (round numbers) instead of percentages
   if (resistencias.length === 0) {
-    const defaultTargets = [2, 4, 6, 8];
-    const ordenes: OrdenVenta[] = defaultTargets
+    const resistenciasReales = generateFallbackResistances(precioActual);
+    
+    const ordenes: OrdenVenta[] = resistenciasReales
       .slice(0, porcentajes.length)
-      .map((targetPct, idx) => {
-        const targetPrice = Math.round(precioActual * (1 + targetPct / 100));
+      .map((resistencia, idx) => {
         const porcentaje = porcentajes[idx] || 0;
         const cantidadUSDT = tamañoPosicion * (porcentaje / 100);
         const retorno = precioEntrada > 0 
-          ? ((targetPrice - precioEntrada) / precioEntrada) * 100
-          : targetPct;
+          ? ((resistencia.precio - precioEntrada) / precioEntrada) * 100
+          : resistencia.distancia;
         const gananciaUSD = Math.round(cantidadUSDT * (retorno / 100));
         
         return {
           nivel: idx + 1,
-          precio: targetPrice,
-          tipo: 'porcentaje',
-          nombre: `+${targetPct}%`,
+          precio: resistencia.precio,
+          tipo: resistencia.tipo,
+          nombre: resistencia.nombre,
+          timeframe: resistencia.timeframe,
           porcentaje,
           cantidadUSDT: Math.round(cantidadUSDT),
           gananciaUSD,
           retorno,
-          razon: 'Take-profit escalonado'
+          razon: resistencia.razon,
+          indicadores: [{ nombre: resistencia.nombre, timeframe: resistencia.timeframe }],
+          esConfluencia: false
         };
       });
     
@@ -400,14 +445,17 @@ function calcularOrdenesVenta(
         nivel: idx + 1,
         precio: resistencia.precio,
         tipo: resistencia.tipo,
-        nombre: resistencia.nombre,
+        nombre: resistencia.esConfluencia ? `Confluencia (${resistencia.indicadores?.length || 1})` : resistencia.nombre,
         timeframe: resistencia.timeframe,
         toques: resistencia.toques,
         porcentaje,
         cantidadUSDT: Math.round(cantidadUSDT),
         gananciaUSD: Math.round(gananciaUSD),
         retorno,
-        razon: resistencia.razon
+        razon: resistencia.razon,
+        // Pass confluence data
+        indicadores: resistencia.indicadores,
+        esConfluencia: resistencia.esConfluencia
       };
     });
   

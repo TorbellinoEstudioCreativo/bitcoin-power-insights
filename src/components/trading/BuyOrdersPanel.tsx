@@ -81,17 +81,10 @@ export function BuyOrdersPanel({ ordenesCompra, precioActual }: BuyOrdersPanelPr
                   <span className="text-sm font-bold text-foreground">
                     ${orden.precio.toLocaleString()}
                   </span>
-                  {orden.timeframe && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-info/20 text-info">
-                      [{orden.timeframe}]
-                    </span>
-                  )}
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary">
-                    {orden.nombre}
-                  </span>
-                  {orden.toques && orden.toques > 0 && (
-                    <span className="text-[10px] text-muted-foreground">
-                      {orden.toques} {language === 'es' ? 'toques' : 'touches'}
+                  {/* Confluence badge */}
+                  {orden.esConfluencia && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 font-bold">
+                      ⭐ {language === 'es' ? 'Confluencia' : 'Confluence'}
                     </span>
                   )}
                 </div>
@@ -104,6 +97,55 @@ export function BuyOrdersPanel({ ordenesCompra, precioActual }: BuyOrdersPanelPr
                   </div>
                 </div>
               </div>
+              
+              {/* Indicators badges */}
+              <div className="flex flex-wrap gap-1 mb-2">
+                {orden.indicadores && orden.indicadores.length > 0 ? (
+                  orden.indicadores.map((ind, idx) => (
+                    <div key={idx} className="flex items-center gap-1">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30">
+                        {ind.nombre}
+                      </span>
+                      {ind.timeframe && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                          ind.timeframe === '1D' 
+                            ? 'bg-success/20 text-success border-success/50'
+                            : ind.timeframe === '1W'
+                            ? 'bg-purple-500/20 text-purple-400 border-purple-500/50'
+                            : ind.timeframe === 'PSYCH'
+                            ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50'
+                            : 'bg-info/20 text-info border-info/50'
+                        }`}>
+                          [{ind.timeframe}]
+                        </span>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    {orden.timeframe && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-info/20 text-info">
+                        [{orden.timeframe}]
+                      </span>
+                    )}
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary">
+                      {orden.nombre}
+                    </span>
+                  </>
+                )}
+                {orden.toques && orden.toques > 0 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {orden.toques} {language === 'es' ? 'toques' : 'touches'}
+                  </span>
+                )}
+              </div>
+              
+              {/* Confluence indicator count */}
+              {orden.esConfluencia && orden.indicadores && (
+                <div className="text-[10px] text-yellow-400 mb-2">
+                  • {orden.indicadores.length} {language === 'es' ? 'indicadores coinciden' : 'indicators match'}
+                </div>
+              )}
               
               <div className="grid grid-cols-2 gap-2 text-xs mb-1">
                 <div>
