@@ -123,7 +123,8 @@ export function useTradingOrders(
   soportes: NivelSoporte[],
   resistencias: NivelSoporte[],
   inputs: TradingInputs,
-  shouldRecalculate: boolean = true
+  shouldRecalculate: boolean = true,
+  emas?: { ema25: number; ema55: number; ema99: number; ema200: number }
 ) {
   // Mantener referencia a órdenes anteriores para suavizado
   const prevOrdenesCompraRef = useRef<OrdenCompra[] | null>(null);
@@ -160,7 +161,8 @@ export function useTradingOrders(
       inputs.precioEntrada,
       inputs.tamañoPosicion,
       ratio,
-      resistencias
+      resistencias,
+      emas
     );
     
     // Aplicar suavizado
@@ -268,32 +270,70 @@ function calcularOrdenesCompra(
 
 // Generate fallback resistances from EMAs when no technical resistances exist
 function generateFallbackResistances(
-  precioActual: number
+  precioActual: number,
+  emas?: { ema25: number; ema55: number; ema99: number; ema200: number }
 ): Array<{ precio: number; nombre: string; tipo: string; timeframe: '1D' | 'PSYCH'; razon: string; distancia: number }> {
   const resistencias: Array<any> = [];
   
-  // Add round number levels as psychological resistances
-  const nivelesRedondos = [95000, 100000, 105000, 110000, 115000, 120000];
+  // 1. FIRST: Detect EMAs as resistances (above current price)
+  if (emas) {
+    const emasArray = [
+      { valor: emas.ema25, nombre: 'EMA(25)' },
+      { valor: emas.ema55, nombre: 'EMA(55)' },
+      { valor: emas.ema99, nombre: 'EMA(99)' },
+      { valor: emas.ema200, nombre: 'EMA(200)' }
+    ];
+    
+    emasArray.forEach(ema => {
+      // Check valid and ABOVE current price
+      if (ema.valor && ema.valor > 0 && ema.valor > precioActual) {
+        const distancia = ((ema.valor - precioActual) / precioActual) * 100;
+        
+        // Include EMAs up to 25% above
+        if (distancia < 25) {
+          resistencias.push({
+            precio: Math.round(ema.valor),
+            nombre: ema.nombre,
+            tipo: 'ema',
+            timeframe: '1D' as const,
+            distancia,
+            razon: `${ema.nombre} diaria - Resistencia dinámica`
+          });
+        }
+      }
+    });
+  }
   
-  nivelesRedondos.forEach(nivel => {
-    if (nivel > precioActual && nivel < precioActual * 1.25) {
-      const distancia = ((nivel - precioActual) / precioActual) * 100;
-      resistencias.push({
-        precio: nivel,
-        nombre: `$${nivel / 1000}K`,
-        tipo: 'redondo',
-        timeframe: 'PSYCH' as const,
-        distancia,
-        razon: nivel === 100000 
-          ? 'Nivel psicológico principal - 100K' 
-          : `Resistencia psicológica ${nivel / 1000}K`
-      });
-    }
-  });
+  // 2. THEN: Add round numbers ONLY if few EMAs found
+  if (resistencias.length < 2) {
+    const nivelesRedondos = [95000, 100000, 105000, 110000, 115000, 120000];
+    
+    nivelesRedondos.forEach(nivel => {
+      if (nivel > precioActual && nivel < precioActual * 1.30) {
+        const distancia = ((nivel - precioActual) / precioActual) * 100;
+        resistencias.push({
+          precio: nivel,
+          nombre: `$${nivel / 1000}K`,
+          tipo: 'redondo',
+          timeframe: 'PSYCH' as const,
+          distancia,
+          razon: nivel === 100000 
+            ? 'Nivel psicológico principal - 100K' 
+            : `Resistencia psicológica ${nivel / 1000}K`
+        });
+      }
+    });
+  }
   
-  // Sort by proximity (closest first)
+  // 3. Prioritize EMAs over round numbers
   return resistencias
-    .sort((a, b) => a.precio - b.precio)
+    .sort((a, b) => {
+      // EMAs first
+      if (a.tipo === 'ema' && b.tipo === 'redondo') return -1;
+      if (a.tipo === 'redondo' && b.tipo === 'ema') return 1;
+      // Then by proximity
+      return a.precio - b.precio;
+    })
     .slice(0, 5);
 }
 
@@ -302,12 +342,13 @@ function generateExitStrategy(
   precioActual: number,
   precioEntrada: number,
   tamañoPosicion: number,
-  currentPL: number
+  currentPL: number,
+  emas?: { ema25: number; ema55: number; ema99: number; ema200: number }
 ): OrdenesVentaResult {
   const lossPercent = Math.abs(currentPL);
   
-  // Get real resistance levels
-  const resistenciasReales = generateFallbackResistances(precioActual);
+  // Get real resistance levels (now with EMAs)
+  const resistenciasReales = generateFallbackResistances(precioActual, emas);
   
   // % to sell based on loss magnitude
   let percentages: number[];
@@ -362,7 +403,8 @@ function calcularOrdenesVenta(
   precioEntrada: number,
   tamañoPosicion: number,
   ratio: number,
-  resistencias: NivelSoporte[]
+  resistencias: NivelSoporte[],
+  emas?: { ema25: number; ema55: number; ema99: number; ema200: number }
 ): OrdenesVentaResult {
   // Check if in loss - use exit strategy
   const isInLoss = precioEntrada > 0 && precioActual < precioEntrada;
@@ -371,7 +413,7 @@ function calcularOrdenesVenta(
     : 0;
   
   if (isInLoss) {
-    return generateExitStrategy(precioActual, precioEntrada, tamañoPosicion, currentPL);
+    return generateExitStrategy(precioActual, precioEntrada, tamañoPosicion, currentPL, emas);
   }
   
   // In profit - use take-profit strategy
@@ -392,9 +434,9 @@ function calcularOrdenesVenta(
     porcentajes = [25, 25, 25, 25]; // 100% total
   }
   
-  // If no resistances, generate real levels (round numbers) instead of percentages
+  // If no resistances, generate real levels (EMAs + round numbers) instead of percentages
   if (resistencias.length === 0) {
-    const resistenciasReales = generateFallbackResistances(precioActual);
+    const resistenciasReales = generateFallbackResistances(precioActual, emas);
     
     const ordenes: OrdenVenta[] = resistenciasReales
       .slice(0, porcentajes.length)

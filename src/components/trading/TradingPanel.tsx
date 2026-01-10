@@ -60,7 +60,7 @@ export function TradingPanel({ analysis, btcPrice }: TradingPanelProps) {
   }, [inputs]);
   
   // Get technical analysis
-  const { soportes, resistencias } = useTechnicalAnalysis(btcPrice, analysis);
+  const { soportes, resistencias, emas } = useTechnicalAnalysis(btcPrice, analysis);
   
   // Get trading orders with stability check
   const { ordenesCompra, ordenesVenta } = useTradingOrders(
@@ -69,7 +69,8 @@ export function TradingPanel({ analysis, btcPrice }: TradingPanelProps) {
     soportes,
     resistencias,
     inputs,
-    shouldRecalculate
+    shouldRecalculate,
+    emas  // Pass EMAs for resistance detection
   );
   
   const handleInputChange = (field: keyof TradingInputs, value: string) => {

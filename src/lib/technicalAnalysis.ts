@@ -351,7 +351,20 @@ export const detectarPivotesSoporte = (
     }
   }
   
-  return pivots;
+  // Deduplicate pivots with same rounded price
+  const deduplicados = pivots.reduce((acc, pivot) => {
+    const existing = acc.find(p => p.precio === pivot.precio);
+    if (existing) {
+      // Merge: keep higher touches count and score
+      existing.toques = Math.max(existing.toques || 0, pivot.toques || 0);
+      existing.score = Math.max(existing.score, pivot.score);
+    } else {
+      acc.push(pivot);
+    }
+    return acc;
+  }, [] as NivelSoporte[]);
+  
+  return deduplicados;
 };
 
 // Detect pivot highs (resistances) from OHLC data
@@ -400,7 +413,19 @@ export const detectarPivotesResistencia = (
     }
   }
   
-  return pivots;
+  // Deduplicate pivots with same rounded price
+  const deduplicados = pivots.reduce((acc, pivot) => {
+    const existing = acc.find(p => p.precio === pivot.precio);
+    if (existing) {
+      existing.toques = Math.max(existing.toques || 0, pivot.toques || 0);
+      existing.score = Math.max(existing.score, pivot.score);
+    } else {
+      acc.push(pivot);
+    }
+    return acc;
+  }, [] as NivelSoporte[]);
+  
+  return deduplicados;
 };
 
 // Merge similar levels (within 0.5% of each other) - tracks multiple indicators for confluence
