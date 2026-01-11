@@ -351,10 +351,10 @@ export const detectarPivotesSoporte = (
     }
   }
   
-  // Deduplicate pivots within 0.5% of each other (not just exact price)
+  // Deduplicate pivots within 1% of each other (catches tiny differences + smoothing drift)
   const deduplicados = pivots.reduce((acc, pivot) => {
     const existing = acc.find(p => 
-      Math.abs(p.precio - pivot.precio) / pivot.precio < 0.005 // 0.5% tolerance
+      Math.abs(p.precio - pivot.precio) / Math.max(p.precio, pivot.precio) < 0.01 // 1% tolerance
     );
     if (existing) {
       // Merge: accumulate touches, keep higher score, average price
@@ -366,7 +366,7 @@ export const detectarPivotesSoporte = (
     }
     return acc;
   }, [] as NivelSoporte[]);
-  
+
   return deduplicados;
 };
 
@@ -416,10 +416,10 @@ export const detectarPivotesResistencia = (
     }
   }
   
-  // Deduplicate pivots within 0.5% of each other (not just exact price)
+  // Deduplicate pivots within 1% of each other (catches tiny differences + smoothing drift)
   const deduplicados = pivots.reduce((acc, pivot) => {
     const existing = acc.find(p => 
-      Math.abs(p.precio - pivot.precio) / pivot.precio < 0.005 // 0.5% tolerance
+      Math.abs(p.precio - pivot.precio) / Math.max(p.precio, pivot.precio) < 0.01 // 1% tolerance
     );
     if (existing) {
       // Merge: accumulate touches, keep higher score, average price
@@ -431,7 +431,7 @@ export const detectarPivotesResistencia = (
     }
     return acc;
   }, [] as NivelSoporte[]);
-  
+
   return deduplicados;
 };
 
@@ -455,51 +455,47 @@ export const fusionarNiveles = (
     );
     
     if (similar) {
-      // MERGE: Add indicator to array
+      // Initialize indicators array if needed
       if (!similar.indicadores) {
         similar.indicadores = [{ 
           nombre: similar.nombre, 
           timeframe: similar.timeframe 
         }];
       }
-      
-      // Don't add duplicate indicators
+
+      // Check if this indicator already exists
       const alreadyHas = similar.indicadores.some(
         ind => ind.nombre === nivel.nombre && ind.timeframe === nivel.timeframe
       );
-      
+
+      // Add indicator ONLY if it's new (and only then grant confluence bonus)
       if (!alreadyHas) {
         similar.indicadores.push({ 
           nombre: nivel.nombre, 
           timeframe: nivel.timeframe 
         });
+        similar.esConfluencia = similar.indicadores.length > 1;
+        similar.score += 10;
       }
-      
-      // Mark as confluence
-      similar.esConfluencia = similar.indicadores.length > 1;
-      
-      // Accumulate touches
+
+      // ALWAYS accumulate touches (even if the indicator is the same, e.g., multiple pivots)
       if (nivel.toques) {
         similar.toques = (similar.toques || 0) + nivel.toques;
       }
-      
-      // Confluence bonus (+10 per extra indicator)
-      similar.score += 10;
-      
+
+      // ALWAYS average price (prevents near-identical duplicates in UI)
+      similar.precio = Math.round((similar.precio + nivel.precio) / 2);
+
       // Keep higher strength
-      if (nivel.fuerza === 'alta' || similar.fuerza === 'baja') {
+      if (nivel.fuerza === 'alta') {
+        similar.fuerza = 'alta';
+      } else if (similar.fuerza === 'baja') {
         similar.fuerza = nivel.fuerza;
       }
-      
-      // Update price to average
-      const totalIndicators = similar.indicadores.length;
-      similar.precio = Math.round(
-        (similar.precio * (totalIndicators - 1) + nivel.precio) / totalIndicators
-      );
-      
-      // Update distance
+
+      // ALWAYS update distance
       similar.distancia = Math.abs((precioActual - similar.precio) / precioActual) * 100;
-      
+
     } else {
       // NEW LEVEL: Initialize with single indicator
       fusionados.push({

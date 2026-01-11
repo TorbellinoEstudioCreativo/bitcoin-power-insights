@@ -87,9 +87,25 @@ export function useTechnicalAnalysis(
       .slice(0, 7);
     
     // Apply smoothing to prevent UI flickering
-    const soportes = suavizarNiveles(soportesOrdenados, 'soportes');
-    const resistencias = suavizarNiveles(resistenciasOrdenadas, 'resistencias');
-    
+    const soportesSuavizados = suavizarNiveles(soportesOrdenados, 'soportes');
+    const resistenciasSuavizadas = suavizarNiveles(resistenciasOrdenadas, 'resistencias');
+
+    // FINAL deduplication (post-smoothing): remove any duplicates within 1%
+    // This catches duplicates reintroduced by smoothing history.
+    const soportes = soportesSuavizados.filter((nivel, idx, arr) => {
+      const firstMatch = arr.findIndex(n =>
+        Math.abs(n.precio - nivel.precio) / Math.max(n.precio, nivel.precio) < 0.01
+      );
+      return firstMatch === idx;
+    });
+
+    const resistencias = resistenciasSuavizadas.filter((nivel, idx, arr) => {
+      const firstMatch = arr.findIndex(n =>
+        Math.abs(n.precio - nivel.precio) / Math.max(n.precio, nivel.precio) < 0.01
+      );
+      return firstMatch === idx;
+    });
+
     return { 
       emas, 
       soportes, 
