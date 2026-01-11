@@ -147,7 +147,7 @@ export function useTradingOrders(
         }
       };
     }
-    
+
     // Calcular nuevas órdenes
     const rawOrdenesCompra = calcularOrdenesCompra(
       precioActual,
@@ -155,7 +155,7 @@ export function useTradingOrders(
       soportes,
       inputs.usdtDisponibles
     );
-    
+
     const rawOrdenesVenta = calcularOrdenesVenta(
       precioActual,
       inputs.precioEntrada,
@@ -164,19 +164,19 @@ export function useTradingOrders(
       resistencias,
       emas
     );
-    
+
     // Aplicar suavizado
     const smoothedBuyOrders = smoothBuyOrders(rawOrdenesCompra.ordenes, prevOrdenesCompraRef.current);
     const smoothedSellOrders = smoothSellOrders(rawOrdenesVenta.ordenes, prevOrdenesVentaRef.current);
-    
+
     // Actualizar referencias
     prevOrdenesCompraRef.current = smoothedBuyOrders;
     prevOrdenesVentaRef.current = smoothedSellOrders;
-    
+
     // Recalcular totales con órdenes suavizadas
     const totalGanancia = smoothedSellOrders.reduce((sum, o) => sum + o.gananciaUSD, 0);
     const porcentajeTotal = smoothedSellOrders.reduce((sum, o) => sum + o.porcentaje, 0);
-    
+
     return {
       ordenesCompra: {
         ...rawOrdenesCompra,
@@ -189,7 +189,7 @@ export function useTradingOrders(
         porcentajeTotal
       }
     };
-  }, [precioActual, ratio, soportes, resistencias, inputs, shouldRecalculate]);
+  }, [precioActual, ratio, soportes, resistencias, inputs, shouldRecalculate, emas]);
 }
 
 // Generate default buy levels based on percentage when no technical supports
