@@ -224,6 +224,8 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
       }
     } else if (tf === '1y') {
       // 1 year: DAILY data for maximum granularity (365 points)
+      let lastMonth = -1; // Track month changes for labels
+      
       for (let i = 365; i >= 0; i--) {
         const date = new Date(currentDate);
         date.setDate(date.getDate() - i);
@@ -242,11 +244,13 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
           ? btcPrice 
           : modelo * ratioActual * (1 + variation);
         
-        // Show label every month (use first day of month detection)
-        const isFirstOfMonth = date.getDate() === 1;
+        // Show label when month changes (not just first day)
+        const currentMonth = date.getMonth();
+        const showMonthLabel = currentMonth !== lastMonth;
+        lastMonth = currentMonth;
         
         data.push({
-          date: isFirstOfMonth ? date.toLocaleDateString('es-MX', { month: 'short' }) : '',
+          date: showMonthLabel ? date.toLocaleDateString('es-MX', { month: 'short' }) : '',
           modelo: Math.round(modelo),
           techo: Math.round(modelo * 3.0),
           piso: Math.round(modelo * 0.5),
@@ -317,11 +321,18 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
             stroke="hsl(var(--muted-foreground))"
             style={{ fontSize: '12px' }}
             tick={{ fill: 'hsl(var(--muted-foreground))' }}
-            ticks={timeframe === 'all' ? 
-              Array.from({ length: 13 }, (_, i) => (2013 + i * 2).toString()) : 
-              undefined
+            ticks={
+              timeframe === 'all' 
+                ? Array.from({ length: 13 }, (_, i) => (2013 + i * 2).toString())
+                : timeframe === '1y'
+                  ? chartData.filter(d => d.date !== '').map(d => d.date)
+                  : undefined
             }
-            interval={timeframe === 'all' ? 0 : 'preserveStartEnd'}
+            interval={
+              timeframe === 'all' || timeframe === '1y' 
+                ? 0 
+                : 'preserveStartEnd'
+            }
           />
           
           <YAxis 
@@ -412,18 +423,6 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
             animationEasing="ease-out"
           />
           
-          {/* Floor Line (Red) */}
-          <Line
-            type="monotone"
-            dataKey="piso"
-            stroke="#ef4444"
-            strokeWidth={2}
-            strokeDasharray="5 5"
-            dot={false}
-            name="Piso (0.5x)"
-            animationDuration={1500}
-            animationEasing="ease-out"
-          />
           
           {/* Today vertical reference line (only for 'all' view) */}
           {timeframe === 'all' && (
