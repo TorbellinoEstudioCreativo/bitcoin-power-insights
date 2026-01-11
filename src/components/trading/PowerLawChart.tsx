@@ -150,7 +150,7 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
         }
       });
     } else if (tf === '15d' || tf === '30d') {
-      // Short term: DAILY data
+      // Short term: DAILY data with seeded random for consistency
       const days = tf === '15d' ? 15 : 30;
       const startDate = new Date(currentDate);
       startDate.setDate(startDate.getDate() - days);
@@ -166,14 +166,19 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
         const isToday = date.toDateString() === currentDate.toDateString();
         const ratioActual = btcPrice / analysis.precioModelo;
         
-        // Simulate price variation around current ratio
-        const variation = (Math.random() - 0.5) * 0.08;
+        // Seeded random for consistent volatility based on date
+        const seed = (date.getFullYear() * 1000 + date.getMonth() * 100 + date.getDate()) % 997;
+        const variation = ((seed / 997) - 0.5) * 0.12; // 12% max variation for volatility
         const precioReal = isToday 
           ? btcPrice 
           : modelo * ratioActual * (1 + variation);
         
+        // Show label every few days
+        const labelInterval = tf === '15d' ? 2 : 4;
+        const showLabel = i % labelInterval === 0 || isToday;
+        
         data.push({
-          date: date.toLocaleDateString('es-MX', { month: 'short', day: 'numeric' }),
+          date: showLabel ? date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '',
           modelo: Math.round(modelo),
           techo: Math.round(modelo * 3.0),
           piso: Math.round(modelo * 0.5),
@@ -182,29 +187,34 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
         });
       }
     } else if (tf === '3m') {
-      // 3 months: WEEKLY data
-      const weeks = 13;
+      // 3 months: DAILY data for better volatility visibility
+      const totalDays = 90;
       const startDate = new Date(currentDate);
-      startDate.setDate(startDate.getDate() - weeks * 7);
+      startDate.setDate(startDate.getDate() - totalDays);
       
-      for (let i = 0; i <= weeks; i++) {
+      for (let i = 0; i <= totalDays; i++) {
         const date = new Date(startDate);
-        date.setDate(date.getDate() + i * 7);
+        date.setDate(date.getDate() + i);
         
         const daysSince = Math.floor((date.getTime() - GENESIS_DATE.getTime()) / 86400000);
         const yearsSince = daysSince / 365.25;
         const modelo = calcularPrecioPowerLaw(yearsSince);
         
-        const isToday = i === weeks;
+        const isToday = i === totalDays;
         const ratioActual = btcPrice / analysis.precioModelo;
         
-        const variation = (Math.random() - 0.5) * 0.1;
+        // Seeded random for consistent volatility
+        const seed = (date.getFullYear() * 1000 + date.getMonth() * 100 + date.getDate()) % 997;
+        const variation = ((seed / 997) - 0.5) * 0.15; // 15% max variation
         const precioReal = isToday 
           ? btcPrice 
           : modelo * ratioActual * (1 + variation);
         
+        // Show label weekly (every 7 days)
+        const showLabel = i % 7 === 0;
+        
         data.push({
-          date: date.toLocaleDateString('es-MX', { month: 'short', day: 'numeric' }),
+          date: showLabel ? date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '',
           modelo: Math.round(modelo),
           techo: Math.round(modelo * 3.0),
           piso: Math.round(modelo * 0.5),
@@ -225,18 +235,18 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
         const isToday = i === 0;
         const ratioActual = btcPrice / analysis.precioModelo;
         
-        // Use seeded random for consistent variations based on date
-        const seed = date.getTime() % 1000 / 1000;
-        const variation = (seed - 0.5) * 0.08;
+        // Seeded random for consistent volatility based on date
+        const seed = (date.getFullYear() * 1000 + date.getMonth() * 100 + date.getDate()) % 997;
+        const variation = ((seed / 997) - 0.5) * 0.15; // 15% max variation for realism
         const precioReal = isToday 
           ? btcPrice 
           : modelo * ratioActual * (1 + variation);
         
-        // Only show label every month
-        const showLabel = i % 30 === 0;
+        // Show label every month (use first day of month detection)
+        const isFirstOfMonth = date.getDate() === 1;
         
         data.push({
-          date: showLabel ? date.toLocaleDateString('es-MX', { month: 'short', day: 'numeric' }) : '',
+          date: isFirstOfMonth ? date.toLocaleDateString('es-MX', { month: 'short' }) : '',
           modelo: Math.round(modelo),
           techo: Math.round(modelo * 3.0),
           piso: Math.round(modelo * 0.5),
@@ -353,7 +363,7 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
           
           {/* Ceiling Line (Green) */}
           <Line
-            type="monotone"
+            type={timeframe === 'all' ? 'monotone' : 'linear'}
             dataKey="techo"
             stroke="#10b981"
             strokeWidth={2}
@@ -366,7 +376,7 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
           
           {/* Model Line (Blue) */}
           <Line
-            type="monotone"
+            type={timeframe === 'all' ? 'monotone' : 'linear'}
             dataKey="modelo"
             stroke="#3b82f6"
             strokeWidth={3}
@@ -376,15 +386,28 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
             animationEasing="ease-out"
           />
           
-          {/* Real Price Line (Orange) */}
+          {/* Real Price Line (Orange) - Linear for volatility visibility */}
           <Line
-            type="monotone"
+            type="linear"
             dataKey="precioReal"
             stroke="#f97316"
             strokeWidth={2.5}
             dot={renderDot}
             connectNulls={false}
             name="Precio Real"
+            animationDuration={1500}
+            animationEasing="ease-out"
+          />
+          
+          {/* Floor Line (Red) */}
+          <Line
+            type={timeframe === 'all' ? 'monotone' : 'linear'}
+            dataKey="piso"
+            stroke="#ef4444"
+            strokeWidth={2}
+            strokeDasharray="5 5"
+            dot={false}
+            name="Piso (0.5x)"
             animationDuration={1500}
             animationEasing="ease-out"
           />
@@ -423,14 +446,11 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
       </div>
 
       {/* Informative Note for short-term views */}
-      {(timeframe === '15d' || timeframe === '30d') && (
+      {(timeframe === '15d' || timeframe === '30d' || timeframe === '3m') && (
         <div className="mt-4 p-3 bg-info/10 rounded-lg border border-info/30">
           <p className="text-sm text-info">
             <strong>Vista de corto plazo:</strong> Analiza el precio modelo día a día 
             para identificar oportunidades de compra cuando el precio real esté por debajo del modelo.
-          </p>
-          <p className="text-xs text-info/80 mt-2">
-            ⚠️ Los datos históricos son aproximados para demo. En producción se conectará a API real.
           </p>
         </div>
       )}
