@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { fetchUSDTDominance, USDTDominanceData, defaultUSDTDominanceData, getLastValidData } from '@/lib/usdtDominance';
 import { useBitcoinPrice } from './useBitcoinPrice';
 
@@ -18,11 +18,17 @@ export function useUSDTDominance() {
     refetchInterval: REFETCH_INTERVAL,
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 15000),
-    // Usar datos cacheados si existen, sino el default
-    placeholderData: (previousData) => previousData ?? cachedData ?? defaultUSDTDominanceData,
-    // Mantener datos anteriores mientras se reintenta
+    
+    // CRÍTICO: Mantener datos anteriores SIEMPRE, nunca perder último dato válido
+    placeholderData: (previousData) => {
+      // Prioridad: previousData > cachedData > default
+      return previousData ?? cachedData ?? defaultUSDTDominanceData;
+    },
+    
     refetchOnWindowFocus: false,
-    // No marcar como error si tenemos datos en caché
-    throwOnError: false
+    throwOnError: false,
+    
+    // Seleccionar datos: si el fetch retorna undefined, usar cache
+    select: (data) => data ?? cachedData ?? defaultUSDTDominanceData
   });
 }
