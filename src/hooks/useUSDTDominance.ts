@@ -13,7 +13,10 @@ export function useUSDTDominance() {
     queryFn: () => fetchUSDTDominance(btcData?.change24h ?? undefined),
     staleTime: REFETCH_INTERVAL,
     refetchInterval: REFETCH_INTERVAL,
-    retry: 2,
-    placeholderData: defaultUSDTDominanceData
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    placeholderData: (previousData) => previousData ?? defaultUSDTDominanceData,
+    // Mantener datos anteriores mientras se reintenta
+    refetchOnWindowFocus: false
   });
 }

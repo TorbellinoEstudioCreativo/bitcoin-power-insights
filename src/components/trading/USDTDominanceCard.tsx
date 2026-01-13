@@ -20,8 +20,9 @@ export function USDTDominanceCard({
 }: USDTDominanceCardProps) {
   const [modalOpen, setModalOpen] = useState(false);
   
-  // Loading state
-  if (isLoading || !data) {
+  // Loading state - solo mostrar skeleton si isLoading es true
+  // Si data es undefined pero no está loading, mostrar skeleton también
+  if (isLoading) {
     return (
       <Card>
         <div className="animate-pulse space-y-3">
@@ -32,6 +33,23 @@ export function USDTDominanceCard({
           <div className="h-8 w-24 bg-muted rounded" />
           <div className="h-6 w-full bg-muted rounded" />
           <div className="h-4 w-full bg-muted rounded" />
+        </div>
+      </Card>
+    );
+  }
+
+  // Si no hay datos, mostrar mensaje de espera (no desaparecer)
+  if (!data) {
+    return (
+      <Card>
+        <div className="flex items-center gap-2 mb-3">
+          <DollarSign className="w-4 h-4 text-success" />
+          <span className="text-sm font-medium text-muted-foreground">USDT Dominance</span>
+        </div>
+        <div className="text-center py-4">
+          <p className="text-sm text-muted-foreground">
+            {isError ? "⚠️ Error obteniendo datos" : "Cargando datos..."}
+          </p>
         </div>
       </Card>
     );
