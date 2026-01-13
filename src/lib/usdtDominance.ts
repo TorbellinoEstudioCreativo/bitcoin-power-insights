@@ -54,6 +54,7 @@ interface HistoryEntry {
 
 // Constantes
 const EXTENDED_STORAGE_KEY = 'usdt-dominance-extended-history';
+const LAST_VALID_DATA_KEY = 'usdt-dominance-last-valid';
 const MAX_HISTORY_ENTRIES = 2016; // 7 días × 24h × 12 (cada 5 min)
 
 // ============================================
@@ -300,64 +301,110 @@ function determineBtcCorrelation(
 }
 
 // ============================================
+// Funciones de Caché
+// ============================================
+
+function saveLastValidData(data: USDTDominanceData): void {
+  try {
+    localStorage.setItem(LAST_VALID_DATA_KEY, JSON.stringify(data));
+  } catch (error) {
+    console.error('Error saving last valid USDT data:', error);
+  }
+}
+
+export function getLastValidData(): USDTDominanceData | null {
+  try {
+    const stored = localStorage.getItem(LAST_VALID_DATA_KEY);
+    if (stored) {
+      const data = JSON.parse(stored) as USDTDominanceData;
+      // Verificar que los datos no son muy antiguos (máximo 1 hora)
+      if (Date.now() - data.timestamp < 60 * 60 * 1000) {
+        return data;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('Error loading last valid USDT data:', error);
+    return null;
+  }
+}
+
+// ============================================
 // Función Principal de Fetch
 // ============================================
 
 export async function fetchUSDTDominance(btcChange24h?: number): Promise<USDTDominanceData> {
-  // Fetch en paralelo para optimizar
-  const [globalRes, usdtRes] = await Promise.all([
-    fetch('https://api.coingecko.com/api/v3/global'),
-    fetch('https://api.coingecko.com/api/v3/coins/tether?localization=false&tickers=false&community_data=false&developer_data=false')
-  ]);
-  
-  if (!globalRes.ok || !usdtRes.ok) {
-    throw new Error('Failed to fetch USDT dominance data');
+  try {
+    // Fetch en paralelo para optimizar
+    const [globalRes, usdtRes] = await Promise.all([
+      fetch('https://api.coingecko.com/api/v3/global'),
+      fetch('https://api.coingecko.com/api/v3/coins/tether?localization=false&tickers=false&community_data=false&developer_data=false')
+    ]);
+    
+    if (!globalRes.ok || !usdtRes.ok) {
+      throw new Error('Failed to fetch USDT dominance data');
+    }
+    
+    const [globalData, usdtData] = await Promise.all([
+      globalRes.json(),
+      usdtRes.json()
+    ]);
+    
+    const totalMarketCap = globalData.data.total_market_cap.usd;
+    const usdtMarketCap = usdtData.market_data.market_cap.usd;
+    const dominance = (usdtMarketCap / totalMarketCap) * 100;
+    
+    // Guardar en historial extendido
+    saveToExtendedHistory(dominance);
+    
+    // Obtener historial para cálculos
+    const history = getExtendedHistory();
+    
+    // Calcular métricas avanzadas
+    const metrics = calculateMetrics(dominance, history);
+    
+    // Clasificar régimen
+    const regime = classifyRegime(dominance);
+    
+    // Generar sparkline
+    const sparklineData = generateSparklineData(history);
+    
+    // Determinar correlación con BTC
+    const btcCorrelation = determineBtcCorrelation(metrics.change24h, btcChange24h ?? null);
+    
+    // Calcular trend basado en cambio 24h
+    let trend: 'up' | 'down' | 'neutral' = 'neutral';
+    if (metrics.change24h > 0.05) trend = 'up';
+    else if (metrics.change24h < -0.05) trend = 'down';
+    
+    const result: USDTDominanceData = {
+      dominance,
+      trend,
+      change: metrics.change24h,
+      usdtMarketCap,
+      totalMarketCap,
+      timestamp: Date.now(),
+      metrics,
+      regime,
+      sparklineData,
+      btcCorrelation
+    };
+    
+    // Guardar como último dato válido para fallback
+    saveLastValidData(result);
+    
+    return result;
+    
+  } catch (error) {
+    // En caso de error, intentar usar el último dato válido
+    const lastValid = getLastValidData();
+    if (lastValid) {
+      console.log('Using cached USDT dominance data due to API error');
+      return lastValid;
+    }
+    // Si no hay caché, propagar el error
+    throw error;
   }
-  
-  const [globalData, usdtData] = await Promise.all([
-    globalRes.json(),
-    usdtRes.json()
-  ]);
-  
-  const totalMarketCap = globalData.data.total_market_cap.usd;
-  const usdtMarketCap = usdtData.market_data.market_cap.usd;
-  const dominance = (usdtMarketCap / totalMarketCap) * 100;
-  
-  // Guardar en historial extendido
-  saveToExtendedHistory(dominance);
-  
-  // Obtener historial para cálculos
-  const history = getExtendedHistory();
-  
-  // Calcular métricas avanzadas
-  const metrics = calculateMetrics(dominance, history);
-  
-  // Clasificar régimen
-  const regime = classifyRegime(dominance);
-  
-  // Generar sparkline
-  const sparklineData = generateSparklineData(history);
-  
-  // Determinar correlación con BTC
-  const btcCorrelation = determineBtcCorrelation(metrics.change24h, btcChange24h ?? null);
-  
-  // Calcular trend basado en cambio 24h
-  let trend: 'up' | 'down' | 'neutral' = 'neutral';
-  if (metrics.change24h > 0.05) trend = 'up';
-  else if (metrics.change24h < -0.05) trend = 'down';
-  
-  return {
-    dominance,
-    trend,
-    change: metrics.change24h,
-    usdtMarketCap,
-    totalMarketCap,
-    timestamp: Date.now(),
-    metrics,
-    regime,
-    sparklineData,
-    btcCorrelation
-  };
 }
 
 // ============================================
