@@ -281,11 +281,34 @@ function prepareChartData() {
     const historyStr = localStorage.getItem('usdt-dominance-extended-history');
     if (!historyStr) return [];
     
-    const history = JSON.parse(historyStr);
+    // Validar que sea JSON válido
+    let history;
+    try {
+      history = JSON.parse(historyStr);
+    } catch (parseError) {
+      console.error('Invalid JSON in USDT history:', parseError);
+      return [];
+    }
     
-    // Filtrar últimos 7 días
+    // Validar que sea un array
+    if (!Array.isArray(history)) {
+      console.error('USDT history is not an array:', typeof history);
+      return [];
+    }
+    
+    // Filtrar últimos 7 días con validación robusta
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    const last7d = history.filter((h: { timestamp: number }) => h.timestamp > sevenDaysAgo);
+    const last7d = history.filter((h: any) => {
+      return (
+        h && 
+        typeof h === 'object' &&
+        typeof h.timestamp === 'number' &&
+        typeof h.dominance === 'number' &&
+        !isNaN(h.timestamp) &&
+        !isNaN(h.dominance) &&
+        h.timestamp > sevenDaysAgo
+      );
+    });
     
     if (last7d.length === 0) return [];
     
@@ -293,26 +316,41 @@ function prepareChartData() {
     const buckets: { [key: string]: number[] } = {};
     
     last7d.forEach((entry: { timestamp: number; dominance: number }) => {
-      const date = new Date(entry.timestamp);
-      const dayKey = `${date.getMonth() + 1}/${date.getDate()}`;
-      const hourBlock = Math.floor(date.getHours() / 6) * 6;
-      const key = `${dayKey} ${hourBlock}h`;
-      
-      if (!buckets[key]) {
-        buckets[key] = [];
+      try {
+        const date = new Date(entry.timestamp);
+        
+        // Validar que la fecha sea válida
+        if (isNaN(date.getTime())) {
+          console.warn('Invalid timestamp:', entry.timestamp);
+          return;
+        }
+        
+        const dayKey = `${date.getMonth() + 1}/${date.getDate()}`;
+        const hourBlock = Math.floor(date.getHours() / 6) * 6;
+        const key = `${dayKey} ${hourBlock}h`;
+        
+        if (!buckets[key]) {
+          buckets[key] = [];
+        }
+        buckets[key].push(entry.dominance);
+      } catch (entryError) {
+        console.warn('Error processing entry:', entry, entryError);
       }
-      buckets[key].push(entry.dominance);
     });
     
     // Ordenar por timestamp y promediar
     const sortedKeys = Object.keys(buckets).sort((a, b) => {
-      const parseKey = (k: string) => {
-        const [datePart, hourPart] = k.split(' ');
-        const [month, day] = datePart.split('/').map(Number);
-        const hour = parseInt(hourPart);
-        return month * 10000 + day * 100 + hour;
-      };
-      return parseKey(a) - parseKey(b);
+      try {
+        const parseKey = (k: string) => {
+          const [datePart, hourPart] = k.split(' ');
+          const [month, day] = datePart.split('/').map(Number);
+          const hour = parseInt(hourPart);
+          return month * 10000 + day * 100 + hour;
+        };
+        return parseKey(a) - parseKey(b);
+      } catch {
+        return 0;
+      }
     });
     
     return sortedKeys.map(key => {
@@ -326,7 +364,7 @@ function prepareChartData() {
       };
     });
   } catch (error) {
-    console.error('Error preparing chart data:', error);
+    console.error('Critical error in prepareChartData:', error);
     return [];
   }
 }

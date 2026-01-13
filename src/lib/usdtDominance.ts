@@ -317,8 +317,9 @@ export function getLastValidData(): USDTDominanceData | null {
     const stored = localStorage.getItem(LAST_VALID_DATA_KEY);
     if (stored) {
       const data = JSON.parse(stored) as USDTDominanceData;
-      // Verificar que los datos no son muy antiguos (máximo 1 hora)
-      if (Date.now() - data.timestamp < 60 * 60 * 1000) {
+      // CAMBIO: Extender cache de 1 hora a 24 horas
+      // USDT Dominance cambia lentamente, datos de hasta 24h son útiles
+      if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
         return data;
       }
     }

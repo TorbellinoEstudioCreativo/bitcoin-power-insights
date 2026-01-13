@@ -1,16 +1,33 @@
 import { useState } from "react";
-import { DollarSign, TrendingUp, TrendingDown, Minus, ChevronRight } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Minus, ChevronRight, AlertTriangle } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { Card } from "./Card";
 import { InfoTooltip } from "./InfoTooltip";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { USDTDominanceModal } from "./USDTDominanceModal";
-import type { USDTDominanceData } from "@/lib/usdtDominance";
+import { defaultUSDTDominanceData, type USDTDominanceData } from "@/lib/usdtDominance";
 
 interface USDTDominanceCardProps {
   data: USDTDominanceData | undefined;
   isLoading?: boolean;
   isError?: boolean;
+}
+
+// Componente helper para loading
+function LoadingSkeleton() {
+  return (
+    <Card>
+      <div className="animate-pulse space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-muted rounded" />
+          <div className="h-4 w-32 bg-muted rounded" />
+        </div>
+        <div className="h-8 w-24 bg-muted rounded" />
+        <div className="h-6 w-full bg-muted rounded" />
+        <div className="h-4 w-full bg-muted rounded" />
+      </div>
+    </Card>
+  );
 }
 
 export function USDTDominanceCard({ 
@@ -20,42 +37,16 @@ export function USDTDominanceCard({
 }: USDTDominanceCardProps) {
   const [modalOpen, setModalOpen] = useState(false);
   
-  // Loading state - solo mostrar skeleton si isLoading es true
-  // Si data es undefined pero no está loading, mostrar skeleton también
-  if (isLoading) {
-    return (
-      <Card>
-        <div className="animate-pulse space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-muted rounded" />
-            <div className="h-4 w-32 bg-muted rounded" />
-          </div>
-          <div className="h-8 w-24 bg-muted rounded" />
-          <div className="h-6 w-full bg-muted rounded" />
-          <div className="h-4 w-full bg-muted rounded" />
-        </div>
-      </Card>
-    );
+  // Loading state - solo mostrar skeleton si está cargando por primera vez
+  if (isLoading && !data) {
+    return <LoadingSkeleton />;
   }
 
-  // Si no hay datos, mostrar mensaje de espera (no desaparecer)
-  if (!data) {
-    return (
-      <Card>
-        <div className="flex items-center gap-2 mb-3">
-          <DollarSign className="w-4 h-4 text-success" />
-          <span className="text-sm font-medium text-muted-foreground">USDT Dominance</span>
-        </div>
-        <div className="text-center py-4">
-          <p className="text-sm text-muted-foreground">
-            {isError ? "⚠️ Error obteniendo datos" : "Cargando datos..."}
-          </p>
-        </div>
-      </Card>
-    );
-  }
-
-  const { dominance, metrics, regime, sparklineData } = data;
+  // CRÍTICO: Usar datos seguros - NUNCA dejar la card vacía
+  const safeData = data ?? defaultUSDTDominanceData;
+  const isUsingFallback = !data || data.timestamp === 0;
+  
+  const { dominance, metrics, regime, sparklineData } = safeData;
 
   // Función para obtener icono de tendencia
   const getTrendIcon = () => {
@@ -107,6 +98,19 @@ export function USDTDominanceCard({
     return 'hsl(var(--muted-foreground))';
   };
 
+  // Calcular hace cuánto tiempo se actualizaron los datos
+  const getDataAge = () => {
+    if (!safeData.timestamp || safeData.timestamp === 0) return null;
+    const ageMs = Date.now() - safeData.timestamp;
+    const ageMinutes = Math.floor(ageMs / (1000 * 60));
+    if (ageMinutes < 10) return null; // Datos recientes, no mostrar
+    if (ageMinutes < 60) return `${ageMinutes}min`;
+    const ageHours = Math.floor(ageMinutes / 60);
+    return `${ageHours}h`;
+  };
+
+  const dataAge = getDataAge();
+
   return (
     <>
       <Card>
@@ -119,15 +123,30 @@ export function USDTDominanceCard({
               content="Mide qué % del mercado crypto representa USDT. Si sube = traders vendiendo crypto (bajista). Si baja = traders comprando crypto (alcista)." 
             />
           </div>
-          {/* Botón Ver más */}
-          <button 
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => setModalOpen(true)}
-          >
-            Ver más
-            <ChevronRight className="w-3 h-3" />
-          </button>
+          {/* Botón Ver más - solo si hay datos reales */}
+          {data && !isUsingFallback && (
+            <button 
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setModalOpen(true)}
+            >
+              Ver más
+              <ChevronRight className="w-3 h-3" />
+            </button>
+          )}
         </div>
+
+        {/* Indicador visual si estamos usando fallback o datos en caché */}
+        {(isUsingFallback || isError || dataAge) && (
+          <div className="mb-2 text-xs text-warning bg-warning/10 px-2 py-1 rounded flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" />
+            {isError 
+              ? "Error API - usando caché" 
+              : isUsingFallback 
+                ? "Cargando datos..." 
+                : `Datos de hace ${dataAge}`
+            }
+          </div>
+        )}
         
         {/* Valor Principal + Cambio 24h */}
         <div className="flex items-baseline gap-2 mb-3">
@@ -214,21 +233,16 @@ export function USDTDominanceCard({
             </div>
           </div>
         )}
-
-        {/* Error state */}
-        {isError && (
-          <div className="mt-3 text-xs text-warning bg-warning/10 px-2 py-1 rounded">
-            ⚠️ Error obteniendo datos
-          </div>
-        )}
       </Card>
 
-      {/* Modal de análisis detallado */}
-      <USDTDominanceModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        data={data}
-      />
+      {/* Modal de análisis detallado - solo si hay datos reales */}
+      {data && !isUsingFallback && (
+        <USDTDominanceModal
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          data={data}
+        />
+      )}
     </>
   );
 }
