@@ -136,15 +136,11 @@ export function RightSidebar({ analysis, priceData, isPriceError, dataUpdatedAt 
       <OpportunityScore ratio={analysis.ratio} />
 
       {/* Card 5: USDT Dominance */}
-      {usdtData && (
-        <USDTDominanceCard 
-          dominance={usdtData.dominance}
-          trend={usdtData.trend}
-          change={usdtData.change}
-          isLoading={isUsdtLoading}
-          isError={isUsdtError}
-        />
-      )}
+      <USDTDominanceCard 
+        data={usdtData}
+        isLoading={isUsdtLoading}
+        isError={isUsdtError}
+      />
 
       {/* Card 6: Señal Combinada */}
       {usdtData && (
