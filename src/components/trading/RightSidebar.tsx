@@ -6,9 +6,12 @@ import { AnimatedNumber } from "./AnimatedNumber";
 import { OpportunityScore } from "./OpportunityScore";
 import { USDTDominanceCard } from "./USDTDominanceCard";
 import { CombinedSignalCard } from "./CombinedSignalCard";
+import { OpenInterestCardCompact } from "./OpenInterestCardCompact";
+import { FundingRateCardCompact } from "./FundingRateCardCompact";
 import { PowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 import { BitcoinPriceData } from "@/hooks/useBitcoinPrice";
 import { useUSDTDominance } from "@/hooks/useUSDTDominance";
+import { useDerivatives } from "@/hooks/useDerivatives";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -21,7 +24,7 @@ interface RightSidebarProps {
 
 export function RightSidebar({ analysis, priceData, isPriceError, dataUpdatedAt }: RightSidebarProps) {
   const { data: usdtData, isLoading: isUsdtLoading, isError: isUsdtError } = useUSDTDominance();
-  
+  const { data: derivativesData, isLoading: isDerivativesLoading } = useDerivatives();
   return (
     <aside className="w-80 bg-background border-l border-border p-4 flex flex-col gap-4 overflow-y-auto">
       {/* Card 1: Precio Actual */}
@@ -142,11 +145,24 @@ export function RightSidebar({ analysis, priceData, isPriceError, dataUpdatedAt 
         isError={isUsdtError}
       />
 
-      {/* Card 6: Señal Combinada */}
+      {/* Card 6: Open Interest */}
+      <OpenInterestCardCompact 
+        data={derivativesData?.openInterest}
+        isLoading={isDerivativesLoading}
+      />
+
+      {/* Card 7: Funding Rate */}
+      <FundingRateCardCompact 
+        data={derivativesData?.fundingRate}
+        isLoading={isDerivativesLoading}
+      />
+
+      {/* Card 8: Señal Combinada */}
       {usdtData && (
         <CombinedSignalCard 
           ratio={analysis.ratio}
           usdtTrend={usdtData.trend}
+          derivativesData={derivativesData}
         />
       )}
 

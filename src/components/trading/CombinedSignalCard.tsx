@@ -1,10 +1,12 @@
-import { Zap } from "lucide-react";
+import { Zap, Activity, Clock } from "lucide-react";
 import { Card } from "./Card";
 import { InfoTooltip } from "./InfoTooltip";
+import { DerivativesData } from "@/lib/derivatives";
 
 interface CombinedSignalCardProps {
   ratio: number;
   usdtTrend: 'up' | 'down' | 'neutral';
+  derivativesData?: DerivativesData;
 }
 
 interface Signal {
@@ -16,69 +18,84 @@ interface Signal {
   bgClass: string;
 }
 
-export function CombinedSignalCard({ ratio, usdtTrend }: CombinedSignalCardProps) {
+export function CombinedSignalCard({ ratio, usdtTrend, derivativesData }: CombinedSignalCardProps) {
+  // Calcular score adicional de derivados
+  const derivativesScore = derivativesData?.combinedScore ?? 0;
+  
   const getSignal = (): Signal => {
-    // Máxima oportunidad: BTC infravalorado + capital entrando
-    if (ratio < 0.8 && usdtTrend === 'down') {
+    // Calcular score base por ratio y USDT
+    let baseScore = 0;
+    
+    // Score por ratio (valoración)
+    if (ratio < 0.8) baseScore += 40;
+    else if (ratio < 1.0) baseScore += 20;
+    else if (ratio > 2.0) baseScore -= 40;
+    else if (ratio > 1.5) baseScore -= 20;
+    
+    // Score por USDT trend
+    if (usdtTrend === 'down') baseScore += 20; // Capital entrando
+    else if (usdtTrend === 'up') baseScore -= 20; // Capital saliendo
+    
+    // Sumar score de derivados
+    const totalScore = baseScore + derivativesScore;
+    
+    // Determinar señal basada en score total
+    if (totalScore >= 50) {
       return {
         level: 'maximum',
         emoji: '🟢🟢',
         title: 'MÁXIMA OPORTUNIDAD',
-        description: 'BTC infravalorado + Capital entrando',
+        description: 'Todos los indicadores alineados',
         colorClass: 'text-success',
         bgClass: 'bg-success/10 border-success/30'
       };
     }
     
-    // Buena oportunidad: BTC infravalorado + mercado neutral
-    if (ratio < 0.8 && usdtTrend === 'neutral') {
+    if (totalScore >= 25) {
       return {
         level: 'good',
         emoji: '🟢',
         title: 'BUENA OPORTUNIDAD',
-        description: 'BTC infravalorado, mercado estable',
+        description: 'Mayoría de indicadores positivos',
         colorClass: 'text-success',
         bgClass: 'bg-success/10 border-success/20'
       };
     }
     
-    // Precaución: BTC infravalorado pero hay miedo
-    if (ratio < 0.8 && usdtTrend === 'up') {
-      return {
-        level: 'caution',
-        emoji: '🟡',
-        title: 'PRECAUCIÓN',
-        description: 'BTC infravalorado pero hay miedo en mercado',
-        colorClass: 'text-warning',
-        bgClass: 'bg-warning/10 border-warning/30'
-      };
-    }
-    
-    // Máximo riesgo: BTC sobrevalorado + pánico
-    if (ratio > 2.0 && usdtTrend === 'up') {
+    if (totalScore <= -50) {
       return {
         level: 'maximum-risk',
         emoji: '🔴🔴',
         title: 'MÁXIMO RIESGO',
-        description: 'BTC sobrevalorado + Pánico en mercado',
+        description: 'Todos los indicadores negativos',
         colorClass: 'text-danger',
         bgClass: 'bg-danger/10 border-danger/30'
       };
     }
     
-    // Riesgo: BTC sobrevalorado
-    if (ratio > 2.0) {
+    if (totalScore <= -25) {
       return {
         level: 'risk',
         emoji: '🔴',
         title: 'ALTO RIESGO',
-        description: 'BTC significativamente sobrevalorado',
+        description: 'Mayoría de indicadores negativos',
         colorClass: 'text-danger',
         bgClass: 'bg-danger/10 border-danger/20'
       };
     }
     
-    // Neutral: Condiciones mixtas
+    if (totalScore < 0) {
+      return {
+        level: 'caution',
+        emoji: '🟡',
+        title: 'PRECAUCIÓN',
+        description: 'Señales mixtas con sesgo negativo',
+        colorClass: 'text-warning',
+        bgClass: 'bg-warning/10 border-warning/30'
+      };
+    }
+    
+    // Neutral: Score cercano a 0
     return {
       level: 'neutral',
       emoji: '🔵',
@@ -114,23 +131,54 @@ export function CombinedSignalCard({ ratio, usdtTrend }: CombinedSignalCardProps
       </div>
       
       {/* Inputs */}
-      <div className="grid grid-cols-2 gap-2 text-xs bg-secondary/30 rounded-lg p-2">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Ratio:</span>
-          <span className="font-medium text-foreground">{ratio.toFixed(2)}</span>
+      <div className="space-y-1.5 text-xs bg-secondary/30 rounded-lg p-2">
+        {/* Fila 1: Ratio y USDT */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Ratio:</span>
+            <span className="font-medium text-foreground">{ratio.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">USDT:</span>
+            <span className={`font-medium ${
+              usdtTrend === 'up' ? 'text-danger' : 
+              usdtTrend === 'down' ? 'text-success' : 
+              'text-muted-foreground'
+            }`}>
+              {usdtTrend === 'up' ? '↗️' : usdtTrend === 'down' ? '↘️' : '→'}
+            </span>
+          </div>
         </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">USDT:</span>
-          <span className={`font-medium ${
-            usdtTrend === 'up' ? 'text-danger' : 
-            usdtTrend === 'down' ? 'text-success' : 
-            'text-muted-foreground'
-          }`}>
-            {usdtTrend === 'up' ? '↗️ Subiendo' : 
-             usdtTrend === 'down' ? '↘️ Bajando' : 
-             '→ Estable'}
-          </span>
-        </div>
+        
+        {/* Fila 2: Derivados (si disponible) */}
+        {derivativesData && (
+          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/50">
+            <div className="flex items-center gap-1">
+              <Activity className="w-3 h-3 text-info" />
+              <span className="text-muted-foreground">OI:</span>
+              <span className={`font-medium ${
+                derivativesData.openInterest.change24h >= 5 ? 'text-success' :
+                derivativesData.openInterest.change24h <= -5 ? 'text-danger' :
+                'text-muted-foreground'
+              }`}>
+                {derivativesData.openInterest.change24h >= 0 ? '+' : ''}
+                {derivativesData.openInterest.change24h.toFixed(0)}%
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Clock className="w-3 h-3 text-info" />
+              <span className="text-muted-foreground">FR:</span>
+              <span className={`font-medium ${
+                derivativesData.fundingRate.fundingRatePercent >= 0.05 ? 'text-danger' :
+                derivativesData.fundingRate.fundingRatePercent <= -0.01 ? 'text-success' :
+                'text-muted-foreground'
+              }`}>
+                {derivativesData.fundingRate.fundingRatePercent >= 0 ? '+' : ''}
+                {derivativesData.fundingRate.fundingRatePercent.toFixed(3)}%
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </Card>
   );
