@@ -5,6 +5,7 @@ import { RightSidebar } from "@/components/trading/RightSidebar";
 import { MainContent } from "@/components/trading/MainContent";
 import { Footer } from "@/components/trading/Footer";
 import { PortfolioInput } from "@/components/trading/PortfolioInput";
+import { TradingTabs } from "@/components/layout/TradingTabs";
 import { usePowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 import { useDebouncedValue } from "@/hooks/useDebounce";
 import { useBitcoinPrice } from "@/hooks/useBitcoinPrice";
@@ -12,6 +13,9 @@ import { useAlerts } from "@/hooks/useAlerts";
 import { BTC_PRICE_FALLBACK } from "@/lib/constants";
 
 const Index = () => {
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'powerlaw' | 'intraday'>('powerlaw');
+  
   // Portfolio value state with localStorage
   const [portfolioValue, setPortfolioValue] = useState(() => {
     const saved = localStorage.getItem('portfolioValue');
@@ -76,24 +80,43 @@ const Index = () => {
         estimatedCost6m={analysis.costoIntereses6m}
       />
       
+      <TradingTabs activeTab={activeTab} onTabChange={setActiveTab} />
+      
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar - hidden on mobile/tablet */}
-        <div className="hidden lg:block">
-          <LeftSidebar />
-        </div>
-        
-        {/* Main Content */}
-        <MainContent analysis={analysis} btcPrice={btcPrice} interestRate={interestRate} />
-        
-        {/* Right Sidebar - hidden on mobile/tablet, shown on xl+ */}
-        <div className="hidden xl:block">
-          <RightSidebar 
-            analysis={analysis} 
-            priceData={priceData}
-            isPriceError={isPriceError}
-            dataUpdatedAt={dataUpdatedAt}
-          />
-        </div>
+        {activeTab === 'powerlaw' ? (
+          <>
+            {/* Left Sidebar - hidden on mobile/tablet */}
+            <div className="hidden lg:block">
+              <LeftSidebar />
+            </div>
+            
+            {/* Main Content */}
+            <MainContent analysis={analysis} btcPrice={btcPrice} interestRate={interestRate} />
+            
+            {/* Right Sidebar - hidden on mobile/tablet, shown on xl+ */}
+            <div className="hidden xl:block">
+              <RightSidebar 
+                analysis={analysis} 
+                priceData={priceData}
+                isPriceError={isPriceError}
+                dataUpdatedAt={dataUpdatedAt}
+              />
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center p-8">
+              <div className="text-6xl mb-4">🚧</div>
+              <h2 className="text-2xl font-bold text-foreground mb-2">Vista Intradía</h2>
+              <p className="text-muted-foreground mb-4">
+                Análisis intradía con métricas avanzadas de derivados
+              </p>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-warning/10 text-warning rounded-lg">
+                <span>Próximamente disponible</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       
       <Footer />

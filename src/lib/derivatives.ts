@@ -1,0 +1,381 @@
+// ============================================
+// FASE A.1: Biblioteca de Métricas de Derivados
+// Binance Futures API Integration
+// ============================================
+
+export interface OpenInterestData {
+  openInterest: number; // En contratos
+  openInterestUsd: number; // En USD
+  change24h: number; // Porcentaje de cambio
+  timestamp: number;
+  trend: 'rising' | 'falling' | 'stable';
+  signal: 'bullish' | 'bearish' | 'buildup' | 'neutral';
+  interpretation: string;
+}
+
+export interface FundingRateData {
+  fundingRate: number; // Rate actual (ej: 0.0001 = 0.01%)
+  fundingRatePercent: number; // En porcentaje (ej: 0.01)
+  nextFundingTime: number; // Timestamp del próximo funding
+  level: 'extreme_positive' | 'high_positive' | 'normal' | 'low' | 'negative' | 'extreme_negative';
+  signal: 'long_squeeze_risk' | 'short_squeeze_risk' | 'crowded_longs' | 'crowded_shorts' | 'neutral';
+  interpretation: string;
+  timestamp: number;
+}
+
+export interface DerivativesData {
+  openInterest: OpenInterestData;
+  fundingRate: FundingRateData;
+  timestamp: number;
+  combinedScore: number; // Score adicional para señal combinada
+}
+
+// Thresholds para Funding Rate
+const FUNDING_THRESHOLDS = {
+  EXTREME_POSITIVE: 0.10, // 0.10% - Muchos longs
+  HIGH_POSITIVE: 0.05,    // 0.05% - Longs dominando
+  LOW: 0.01,              // 0.01% - Normal
+  NEGATIVE: -0.01,        // -0.01% - Shorts dominando
+  EXTREME_NEGATIVE: -0.05 // -0.05% - Muchos shorts
+};
+
+// Thresholds para Open Interest cambio 24h
+const OI_THRESHOLDS = {
+  STRONG_RISE: 10,  // +10%
+  RISE: 5,          // +5%
+  FALL: -5,         // -5%
+  STRONG_FALL: -10  // -10%
+};
+
+// Storage keys
+const OI_HISTORY_KEY = 'derivatives-oi-history';
+const LAST_DERIVATIVES_KEY = 'derivatives-last-valid';
+
+// ============================================
+// Historial en localStorage (48h)
+// ============================================
+
+interface OIHistoryEntry {
+  timestamp: number;
+  openInterestUsd: number;
+}
+
+function getOIHistory(): OIHistoryEntry[] {
+  try {
+    const stored = localStorage.getItem(OI_HISTORY_KEY);
+    if (!stored) return [];
+    const history = JSON.parse(stored);
+    if (!Array.isArray(history)) return [];
+    
+    // Filtrar últimas 48 horas
+    const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+    return history.filter((h: OIHistoryEntry) => h.timestamp > cutoff);
+  } catch {
+    return [];
+  }
+}
+
+function saveOIHistory(current: number): void {
+  try {
+    const history = getOIHistory();
+    history.push({ timestamp: Date.now(), openInterestUsd: current });
+    
+    // Mantener máximo 576 entries (cada 5 min por 48h)
+    const trimmed = history.slice(-576);
+    localStorage.setItem(OI_HISTORY_KEY, JSON.stringify(trimmed));
+  } catch (e) {
+    console.error('Error saving OI history:', e);
+  }
+}
+
+function calculateOIChange24h(currentOI: number): number {
+  const history = getOIHistory();
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  
+  // Encontrar el entry más cercano a hace 24h
+  const oldEntry = history
+    .filter(h => h.timestamp <= oneDayAgo)
+    .sort((a, b) => b.timestamp - a.timestamp)[0];
+  
+  if (!oldEntry || oldEntry.openInterestUsd === 0) {
+    // Usar el entry más antiguo disponible
+    const oldest = history[0];
+    if (!oldest || oldest.openInterestUsd === 0) return 0;
+    return ((currentOI - oldest.openInterestUsd) / oldest.openInterestUsd) * 100;
+  }
+  
+  return ((currentOI - oldEntry.openInterestUsd) / oldEntry.openInterestUsd) * 100;
+}
+
+// ============================================
+// Fetch desde Binance Futures API
+// ============================================
+
+export async function fetchOpenInterest(): Promise<{ openInterest: number; openInterestUsd: number }> {
+  // Primero obtener el precio actual para convertir a USD
+  const priceResponse = await fetch('https://fapi.binance.com/fapi/v1/ticker/price?symbol=BTCUSDT');
+  if (!priceResponse.ok) throw new Error('Error fetching BTC price');
+  const priceData = await priceResponse.json();
+  const btcPrice = parseFloat(priceData.price);
+  
+  // Obtener Open Interest
+  const oiResponse = await fetch('https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT');
+  if (!oiResponse.ok) throw new Error('Error fetching open interest');
+  const oiData = await oiResponse.json();
+  
+  const openInterest = parseFloat(oiData.openInterest);
+  const openInterestUsd = openInterest * btcPrice;
+  
+  return { openInterest, openInterestUsd };
+}
+
+export async function fetchFundingRate(): Promise<{ fundingRate: number; nextFundingTime: number }> {
+  const response = await fetch('https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=1');
+  if (!response.ok) throw new Error('Error fetching funding rate');
+  const data = await response.json();
+  
+  if (!data || !data[0]) throw new Error('Invalid funding rate data');
+  
+  return {
+    fundingRate: parseFloat(data[0].fundingRate),
+    nextFundingTime: data[0].fundingTime
+  };
+}
+
+// ============================================
+// Análisis de Open Interest
+// ============================================
+
+function analyzeOpenInterest(openInterestUsd: number, change24h: number): Pick<OpenInterestData, 'trend' | 'signal' | 'interpretation'> {
+  let trend: OpenInterestData['trend'];
+  let signal: OpenInterestData['signal'];
+  let interpretation: string;
+  
+  // Determinar trend
+  if (change24h > OI_THRESHOLDS.RISE) {
+    trend = 'rising';
+  } else if (change24h < OI_THRESHOLDS.FALL) {
+    trend = 'falling';
+  } else {
+    trend = 'stable';
+  }
+  
+  // Determinar signal e interpretación
+  if (change24h >= OI_THRESHOLDS.STRONG_RISE) {
+    signal = 'buildup';
+    interpretation = 'Build-up fuerte - Movimiento grande próximo';
+  } else if (change24h >= OI_THRESHOLDS.RISE) {
+    signal = 'bullish';
+    interpretation = 'Capital entrando al mercado';
+  } else if (change24h <= OI_THRESHOLDS.STRONG_FALL) {
+    signal = 'bearish';
+    interpretation = 'Liquidaciones masivas - Capital saliendo';
+  } else if (change24h <= OI_THRESHOLDS.FALL) {
+    signal = 'bearish';
+    interpretation = 'Capital saliendo del mercado';
+  } else {
+    signal = 'neutral';
+    interpretation = 'Sin cambios significativos';
+  }
+  
+  return { trend, signal, interpretation };
+}
+
+// ============================================
+// Análisis de Funding Rate
+// ============================================
+
+function analyzeFundingRate(fundingRatePercent: number): Pick<FundingRateData, 'level' | 'signal' | 'interpretation'> {
+  let level: FundingRateData['level'];
+  let signal: FundingRateData['signal'];
+  let interpretation: string;
+  
+  if (fundingRatePercent >= FUNDING_THRESHOLDS.EXTREME_POSITIVE) {
+    level = 'extreme_positive';
+    signal = 'long_squeeze_risk';
+    interpretation = 'Longs extremos - Alto riesgo de barrido';
+  } else if (fundingRatePercent >= FUNDING_THRESHOLDS.HIGH_POSITIVE) {
+    level = 'high_positive';
+    signal = 'crowded_longs';
+    interpretation = 'Muchos longs - Riesgo moderado';
+  } else if (fundingRatePercent > FUNDING_THRESHOLDS.LOW) {
+    level = 'normal';
+    signal = 'neutral';
+    interpretation = 'Longs pagando a shorts (normal)';
+  } else if (fundingRatePercent >= FUNDING_THRESHOLDS.NEGATIVE) {
+    level = 'low';
+    signal = 'neutral';
+    interpretation = 'Mercado equilibrado';
+  } else if (fundingRatePercent >= FUNDING_THRESHOLDS.EXTREME_NEGATIVE) {
+    level = 'negative';
+    signal = 'crowded_shorts';
+    interpretation = 'Shorts dominando - Posible squeeze';
+  } else {
+    level = 'extreme_negative';
+    signal = 'short_squeeze_risk';
+    interpretation = 'Shorts extremos - Alto riesgo de squeeze alcista';
+  }
+  
+  return { level, signal, interpretation };
+}
+
+// ============================================
+// Cálculo de Score para Señal Combinada
+// ============================================
+
+function calculateDerivativesScore(oi: OpenInterestData, fr: FundingRateData): number {
+  let score = 0;
+  
+  // Score por Open Interest
+  if (oi.change24h >= OI_THRESHOLDS.STRONG_RISE) {
+    score += 15; // Build-up fuerte
+  } else if (oi.change24h >= OI_THRESHOLDS.RISE) {
+    score += 10; // Capital entrando
+  } else if (oi.change24h <= OI_THRESHOLDS.STRONG_FALL) {
+    score -= 15; // Salida masiva
+  } else if (oi.change24h <= OI_THRESHOLDS.FALL) {
+    score -= 10; // Capital saliendo
+  }
+  
+  // Score por Funding Rate
+  if (fr.signal === 'short_squeeze_risk') {
+    score += 10; // Posible squeeze alcista
+  } else if (fr.signal === 'long_squeeze_risk') {
+    score -= 10; // Riesgo de barrido de longs
+  }
+  
+  // Penalización por crowding extremo
+  if (fr.level === 'extreme_positive') {
+    score -= 20; // Demasiados longs
+  }
+  
+  return score;
+}
+
+// ============================================
+// Función Principal
+// ============================================
+
+export async function fetchDerivativesData(): Promise<DerivativesData> {
+  try {
+    // Fetch en paralelo
+    const [oiResult, frResult] = await Promise.all([
+      fetchOpenInterest(),
+      fetchFundingRate()
+    ]);
+    
+    // Guardar en historial
+    saveOIHistory(oiResult.openInterestUsd);
+    
+    // Calcular cambio 24h
+    const change24h = calculateOIChange24h(oiResult.openInterestUsd);
+    
+    // Analizar OI
+    const oiAnalysis = analyzeOpenInterest(oiResult.openInterestUsd, change24h);
+    
+    // Convertir funding rate a porcentaje
+    const fundingRatePercent = frResult.fundingRate * 100;
+    
+    // Analizar Funding Rate
+    const frAnalysis = analyzeFundingRate(fundingRatePercent);
+    
+    const openInterest: OpenInterestData = {
+      openInterest: oiResult.openInterest,
+      openInterestUsd: oiResult.openInterestUsd,
+      change24h,
+      timestamp: Date.now(),
+      ...oiAnalysis
+    };
+    
+    const fundingRate: FundingRateData = {
+      fundingRate: frResult.fundingRate,
+      fundingRatePercent,
+      nextFundingTime: frResult.nextFundingTime,
+      timestamp: Date.now(),
+      ...frAnalysis
+    };
+    
+    const combinedScore = calculateDerivativesScore(openInterest, fundingRate);
+    
+    const data: DerivativesData = {
+      openInterest,
+      fundingRate,
+      timestamp: Date.now(),
+      combinedScore
+    };
+    
+    // Guardar último dato válido
+    localStorage.setItem(LAST_DERIVATIVES_KEY, JSON.stringify(data));
+    
+    return data;
+  } catch (error) {
+    console.error('Error fetching derivatives data:', error);
+    
+    // Intentar usar último dato válido
+    const cached = getLastValidDerivativesData();
+    if (cached) {
+      return cached;
+    }
+    
+    throw error;
+  }
+}
+
+export function getLastValidDerivativesData(): DerivativesData | null {
+  try {
+    const stored = localStorage.getItem(LAST_DERIVATIVES_KEY);
+    if (!stored) return null;
+    const data = JSON.parse(stored) as DerivativesData;
+    
+    // Aceptar datos de hasta 1 hora
+    if (Date.now() - data.timestamp < 60 * 60 * 1000) {
+      return data;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ============================================
+// Utilidades de Formato
+// ============================================
+
+export function formatOpenInterest(usd: number): string {
+  if (usd >= 1_000_000_000) {
+    return `$${(usd / 1_000_000_000).toFixed(2)}B`;
+  }
+  if (usd >= 1_000_000) {
+    return `$${(usd / 1_000_000).toFixed(1)}M`;
+  }
+  return `$${(usd / 1_000).toFixed(0)}K`;
+}
+
+export function formatFundingRate(percent: number): string {
+  const sign = percent >= 0 ? '+' : '';
+  return `${sign}${percent.toFixed(4)}%`;
+}
+
+export function getFundingLevelLabel(level: FundingRateData['level']): string {
+  const labels: Record<FundingRateData['level'], string> = {
+    extreme_positive: 'Extremo +',
+    high_positive: 'Alto',
+    normal: 'Normal',
+    low: 'Bajo',
+    negative: 'Negativo',
+    extreme_negative: 'Extremo -'
+  };
+  return labels[level];
+}
+
+export function getFundingLevelColor(level: FundingRateData['level']): string {
+  const colors: Record<FundingRateData['level'], string> = {
+    extreme_positive: 'text-danger',
+    high_positive: 'text-warning',
+    normal: 'text-muted-foreground',
+    low: 'text-success',
+    negative: 'text-success',
+    extreme_negative: 'text-success'
+  };
+  return colors[level];
+}
