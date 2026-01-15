@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useIntradayData, IntradayAsset, IntradayTimeframe } from '@/hooks/useIntradayData';
 import { useLiquidationPools } from '@/hooks/useLiquidationPools';
 import { useIntradaySignal } from '@/hooks/useIntradaySignal';
 import { useDerivatives } from '@/hooks/useDerivatives';
+import { getAdjacentTimeframes } from '@/lib/multiTimeframeAnalysis';
 import { AssetSelector } from '@/components/intraday/AssetSelector';
 import { PriceCard } from '@/components/intraday/PriceCard';
 import { IntradayChart } from '@/components/intraday/IntradayChart';
@@ -15,9 +16,22 @@ export function IntradayView() {
   const [selectedAsset, setSelectedAsset] = useState<IntradayAsset>('BTC');
   const [timeframe, setTimeframe] = useState<IntradayTimeframe>('15m');
 
-  // Fetch data
+  // Get adjacent timeframes for confluence analysis
+  const adjacentTFs = useMemo(() => getAdjacentTimeframes(timeframe), [timeframe]);
+
+  // Fetch data for current timeframe
   const { data: intradayData, isLoading: isLoadingIntraday, analysis } = useIntradayData(selectedAsset, timeframe);
   const { data: derivativesData, isLoading: isLoadingDerivatives } = useDerivatives();
+  
+  // Fetch data for adjacent timeframes (for confluence)
+  const { data: lowerTFData } = useIntradayData(
+    selectedAsset, 
+    adjacentTFs.lower ?? '5m'
+  );
+  const { data: upperTFData } = useIntradayData(
+    selectedAsset, 
+    adjacentTFs.upper ?? '4h'
+  );
   
   // Calculate liquidation pools
   const liquidationData = useLiquidationPools(
@@ -26,8 +40,18 @@ export function IntradayView() {
     intradayData?.volatility ?? 1
   );
   
-  // Calculate signal (pass timeframe for dynamic TPs)
-  const signal = useIntradaySignal(intradayData, derivativesData, timeframe);
+  // Calculate signal with multi-TF confluence
+  const signal = useIntradaySignal(
+    intradayData, 
+    derivativesData, 
+    timeframe,
+    {
+      lowerTFData: adjacentTFs.lower ? lowerTFData : null,
+      upperTFData: adjacentTFs.upper ? upperTFData : null,
+      lowerTF: adjacentTFs.lower,
+      upperTF: adjacentTFs.upper
+    }
+  );
 
   const isLoading = isLoadingIntraday || isLoadingDerivatives;
 
