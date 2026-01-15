@@ -2,6 +2,12 @@ import { useMemo } from 'react';
 import { IntradayData, IntradayTimeframe } from './useIntradayData';
 import { DerivativesData } from '@/lib/derivatives';
 import { calculateIntradayTPs, IntradayTPLevels } from '@/lib/intradayCalculations';
+import { 
+  generateMultiTFRecommendation, 
+  getDirectionFromEMAs, 
+  getEMAAlignment,
+  TimeframeSignal 
+} from '@/lib/multiTimeframeAnalysis';
 
 // ============================================================================
 // TYPES
@@ -15,6 +21,12 @@ export interface SignalFactor {
   weight: number;
 }
 
+export interface AdjacentSignalInfo {
+  timeframe: string;
+  direction: string;
+  confidence: number;
+}
+
 export interface IntradaySignal {
   direction: SignalDirection;
   confidence: number; // 0-100
@@ -25,23 +37,40 @@ export interface IntradaySignal {
   takeProfit2: number;
   takeProfit3: number;
   riskRewardRatio: number;
-  // NEW: Dynamic TP data
+  // Dynamic TP data
   expectedDuration: string;
   basedOnATR: boolean;
   tp1Percent: number;
   tp2Percent: number;
   tp3Percent: number;
   stopLossPercent: number;
+  // Multi-TF Confluence data
+  confluenceScore?: number;
+  adjustedConfidence?: number;
+  multiTFRecommendation?: string;
+  multiTFWarnings?: string[];
+  adjacentSignals?: {
+    lower?: AdjacentSignalInfo;
+    upper?: AdjacentSignalInfo;
+  };
 }
 
 // ============================================================================
 // SIGNAL CALCULATION
 // ============================================================================
 
+export interface AdjacentTFData {
+  lowerTFData?: IntradayData | null;
+  upperTFData?: IntradayData | null;
+  lowerTF?: IntradayTimeframe;
+  upperTF?: IntradayTimeframe;
+}
+
 export function useIntradaySignal(
   intradayData: IntradayData | null | undefined,
   derivativesData: DerivativesData | null | undefined,
-  timeframe: IntradayTimeframe = '15m'
+  timeframe: IntradayTimeframe = '15m',
+  adjacentData?: AdjacentTFData
 ): IntradaySignal | null {
   return useMemo(() => {
     if (!intradayData) return null;
@@ -186,9 +215,101 @@ export function useIntradaySignal(
       candleData
     );
 
+    // =========================================================================
+    // MULTI-TIMEFRAME CONFLUENCE ANALYSIS
+    // =========================================================================
+    let confluenceScore: number | undefined;
+    let adjustedConfidence: number | undefined;
+    let multiTFRecommendation: string | undefined;
+    let multiTFWarnings: string[] | undefined;
+    let adjacentSignals: IntradaySignal['adjacentSignals'];
+
+    if (adjacentData) {
+      const adjacentTFSignals: TimeframeSignal[] = [];
+      
+      // Build signal from lower timeframe
+      if (adjacentData.lowerTFData && adjacentData.lowerTF) {
+        const lowerEmas = adjacentData.lowerTFData.emas;
+        const lowerDirection = getDirectionFromEMAs(lowerEmas.ema9, lowerEmas.ema21, lowerEmas.ema50);
+        const lowerAlignment = getEMAAlignment(lowerEmas.ema9, lowerEmas.ema21, lowerEmas.ema50);
+        
+        // Quick confidence calculation based on EMA alignment
+        let lowerConfidence = 50;
+        if (lowerAlignment === 'bullish') lowerConfidence = 70;
+        else if (lowerAlignment === 'bearish') lowerConfidence = 70;
+        
+        adjacentTFSignals.push({
+          timeframe: adjacentData.lowerTF,
+          direction: lowerDirection,
+          confidence: lowerConfidence,
+          emaAlignment: lowerAlignment
+        });
+        
+        adjacentSignals = {
+          ...adjacentSignals,
+          lower: {
+            timeframe: adjacentData.lowerTF,
+            direction: lowerDirection,
+            confidence: lowerConfidence
+          }
+        };
+      }
+      
+      // Build signal from upper timeframe
+      if (adjacentData.upperTFData && adjacentData.upperTF) {
+        const upperEmas = adjacentData.upperTFData.emas;
+        const upperDirection = getDirectionFromEMAs(upperEmas.ema9, upperEmas.ema21, upperEmas.ema50);
+        const upperAlignment = getEMAAlignment(upperEmas.ema9, upperEmas.ema21, upperEmas.ema50);
+        
+        // Quick confidence calculation based on EMA alignment
+        let upperConfidence = 50;
+        if (upperAlignment === 'bullish') upperConfidence = 70;
+        else if (upperAlignment === 'bearish') upperConfidence = 70;
+        
+        adjacentTFSignals.push({
+          timeframe: adjacentData.upperTF,
+          direction: upperDirection,
+          confidence: upperConfidence,
+          emaAlignment: upperAlignment
+        });
+        
+        adjacentSignals = {
+          ...adjacentSignals,
+          upper: {
+            timeframe: adjacentData.upperTF,
+            direction: upperDirection,
+            confidence: upperConfidence
+          }
+        };
+      }
+      
+      // Apply confluence analysis if we have adjacent signals
+      if (adjacentTFSignals.length > 0) {
+        const currentTFSignal: TimeframeSignal = {
+          timeframe,
+          direction,
+          confidence,
+          emaAlignment: getEMAAlignment(emas.ema9, emas.ema21, emas.ema50)
+        };
+        
+        const confluenceResult = generateMultiTFRecommendation(currentTFSignal, adjacentTFSignals);
+        confluenceScore = confluenceResult.confluenceScore;
+        adjustedConfidence = confluenceResult.adjustedConfidence;
+        multiTFRecommendation = confluenceResult.recommendation;
+        multiTFWarnings = confluenceResult.warnings;
+        
+        console.log('[useIntradaySignal] 📊 Multi-TF Confluence:', {
+          original: `${confidence.toFixed(0)}%`,
+          adjusted: `${adjustedConfidence}%`,
+          confluenceScore: `${confluenceScore.toFixed(0)}%`,
+          recommendation: multiTFRecommendation
+        });
+      }
+    }
+
     const signal: IntradaySignal = {
       direction,
-      confidence,
+      confidence: adjustedConfidence ?? confidence,
       factors,
       entryPrice: currentPrice,
       stopLoss: tpLevels.stopLoss,
@@ -196,16 +317,22 @@ export function useIntradaySignal(
       takeProfit2: tpLevels.tp2,
       takeProfit3: tpLevels.tp3,
       riskRewardRatio: tpLevels.riskRewardRatio,
-      // NEW: Dynamic TP data
+      // Dynamic TP data
       expectedDuration: tpLevels.expectedDuration,
       basedOnATR: tpLevels.basedOnATR,
       tp1Percent: tpLevels.tp1Percent,
       tp2Percent: tpLevels.tp2Percent,
       tp3Percent: tpLevels.tp3Percent,
-      stopLossPercent: tpLevels.stopLossPercent
+      stopLossPercent: tpLevels.stopLossPercent,
+      // Multi-TF Confluence data
+      confluenceScore,
+      adjustedConfidence,
+      multiTFRecommendation,
+      multiTFWarnings,
+      adjacentSignals
     };
 
-    console.log(`[useIntradaySignal] ✅ Signal: ${direction} (${confidence.toFixed(0)}% confidence)`, {
+    console.log(`[useIntradaySignal] ✅ Signal: ${direction} (${signal.confidence.toFixed(0)}% confidence)`, {
       bullishScore,
       bearishScore,
       netScore,
@@ -216,9 +343,10 @@ export function useIntradaySignal(
         tp2: `${tpLevels.tp2Percent.toFixed(2)}%`,
         tp3: `${tpLevels.tp3Percent.toFixed(2)}%`,
         basedOnATR: tpLevels.basedOnATR
-      }
+      },
+      confluence: confluenceScore !== undefined ? `${confluenceScore.toFixed(0)}%` : 'N/A'
     });
 
     return signal;
-  }, [intradayData, derivativesData, timeframe]);
+  }, [intradayData, derivativesData, timeframe, adjacentData]);
 }

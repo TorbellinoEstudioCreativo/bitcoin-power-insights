@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, AlertTriangle, Layers } from 'lucide-react';
 import { IntradaySignal as IntradaySignalType } from '@/hooks/useIntradaySignal';
 import { cn } from '@/lib/utils';
 
@@ -54,6 +54,19 @@ export function IntradaySignal({ signal, isLoading }: IntradaySignalProps) {
   const config = directionConfig[signal.direction];
   const Icon = config.icon;
 
+  // Confluence color logic
+  const getConfluenceColor = (score: number) => {
+    if (score >= 80) return 'text-success';
+    if (score >= 60) return 'text-warning';
+    return 'text-danger';
+  };
+
+  const getConfluenceBgColor = (score: number) => {
+    if (score >= 80) return 'bg-success';
+    if (score >= 60) return 'bg-warning';
+    return 'bg-danger';
+  };
+
   return (
     <div className={cn(
       "bg-card border rounded-xl p-4",
@@ -91,6 +104,85 @@ export function IntradaySignal({ signal, isLoading }: IntradaySignalProps) {
           />
         </div>
       </div>
+
+      {/* Multi-TF Confluence Section */}
+      {signal.confluenceScore !== undefined && (
+        <div className="mb-4 p-3 bg-secondary/30 rounded-lg border border-border/50">
+          <div className="flex items-center gap-2 mb-2">
+            <Layers className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground">Confluencia Multi-TF</span>
+            <span className={cn(
+              "ml-auto text-sm font-bold",
+              getConfluenceColor(signal.confluenceScore)
+            )}>
+              {signal.confluenceScore.toFixed(0)}%
+            </span>
+          </div>
+          
+          {/* Confluence Bar */}
+          <div className="h-1.5 bg-secondary rounded-full overflow-hidden mb-2">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-500",
+                getConfluenceBgColor(signal.confluenceScore)
+              )}
+              style={{ width: `${signal.confluenceScore}%` }}
+            />
+          </div>
+          
+          {/* Recommendation */}
+          {signal.multiTFRecommendation && (
+            <p className="text-xs text-muted-foreground">
+              {signal.multiTFRecommendation}
+            </p>
+          )}
+          
+          {/* Adjacent TF Info */}
+          {signal.adjacentSignals && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {signal.adjacentSignals.lower && (
+                <span className={cn(
+                  "text-xs px-2 py-0.5 rounded-full",
+                  signal.adjacentSignals.lower.direction === signal.direction
+                    ? "bg-success/20 text-success"
+                    : signal.adjacentSignals.lower.direction === 'NEUTRAL'
+                    ? "bg-warning/20 text-warning"
+                    : "bg-danger/20 text-danger"
+                )}>
+                  {signal.adjacentSignals.lower.timeframe}: {signal.adjacentSignals.lower.direction}
+                </span>
+              )}
+              {signal.adjacentSignals.upper && (
+                <span className={cn(
+                  "text-xs px-2 py-0.5 rounded-full",
+                  signal.adjacentSignals.upper.direction === signal.direction
+                    ? "bg-success/20 text-success"
+                    : signal.adjacentSignals.upper.direction === 'NEUTRAL'
+                    ? "bg-warning/20 text-warning"
+                    : "bg-danger/20 text-danger"
+                )}>
+                  {signal.adjacentSignals.upper.timeframe}: {signal.adjacentSignals.upper.direction}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Multi-TF Warnings */}
+      {signal.multiTFWarnings && signal.multiTFWarnings.length > 0 && (
+        <div className="mb-4 space-y-1">
+          {signal.multiTFWarnings.map((warning, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-2 text-xs text-amber-500"
+            >
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              <span>{warning}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Factors */}
       <div className="space-y-2">
