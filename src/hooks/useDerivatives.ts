@@ -2,7 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { 
   fetchDerivativesData, 
   DerivativesData, 
-  getLastValidDerivativesData 
+  getLastValidDerivativesData,
+  formatOpenInterest,
+  formatFundingRate
 } from '@/lib/derivatives';
 
 const REFETCH_INTERVAL = 5 * 60 * 1000; // 5 minutos
@@ -12,7 +14,20 @@ export function useDerivatives() {
   
   return useQuery<DerivativesData>({
     queryKey: ['derivatives-data'],
-    queryFn: fetchDerivativesData,
+    queryFn: async () => {
+      console.log('[useDerivatives] Starting fetch...');
+      try {
+        const data = await fetchDerivativesData();
+        console.log('[useDerivatives] ✅ Fetch successful:', {
+          oi: formatOpenInterest(data.openInterest.openInterestUsd),
+          funding: formatFundingRate(data.fundingRate.fundingRatePercent)
+        });
+        return data;
+      } catch (error) {
+        console.error('[useDerivatives] ❌ Fetch failed:', error);
+        throw error;
+      }
+    },
     staleTime: REFETCH_INTERVAL,
     refetchInterval: REFETCH_INTERVAL,
     retry: 2,
