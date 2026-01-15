@@ -16,6 +16,16 @@ interface FundingRateCardCompactProps {
 }
 
 export function FundingRateCardCompact({ data, isLoading }: FundingRateCardCompactProps) {
+  // Debug: Log cuando cambian los datos
+  useEffect(() => {
+    if (data) {
+      console.log('[FundingRateCard] Data received:', {
+        rate: formatFundingRate(data.fundingRatePercent),
+        level: data.level,
+        nextFunding: new Date(data.nextFundingTime).toLocaleString()
+      });
+    }
+  }, [data]);
   const [countdown, setCountdown] = useState('');
 
   // Update countdown every second

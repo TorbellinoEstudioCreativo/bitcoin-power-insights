@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Activity, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Card } from "./Card";
 import { InfoTooltip } from "./InfoTooltip";
@@ -9,6 +10,16 @@ interface OpenInterestCardCompactProps {
 }
 
 export function OpenInterestCardCompact({ data, isLoading }: OpenInterestCardCompactProps) {
+  // Debug: Log cuando cambian los datos
+  useEffect(() => {
+    if (data) {
+      console.log('[OpenInterestCard] Data received:', {
+        value: formatOpenInterest(data.openInterestUsd),
+        change24h: `${data.change24h.toFixed(2)}%`,
+        signal: data.signal
+      });
+    }
+  }, [data]);
   if (isLoading) {
     return (
       <Card>

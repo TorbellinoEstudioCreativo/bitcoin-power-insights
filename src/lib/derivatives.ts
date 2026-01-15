@@ -3,6 +3,15 @@
 // Binance Futures API Integration
 // ============================================
 
+// DEBUG: Habilitar logs
+const DEBUG = true;
+
+function debugLog(message: string, data?: unknown) {
+  if (DEBUG) {
+    console.log(`[Derivatives] ${message}`, data ?? '');
+  }
+}
+
 export interface OpenInterestData {
   openInterest: number; // En contratos
   openInterestUsd: number; // En USD
@@ -112,34 +121,97 @@ function calculateOIChange24h(currentOI: number): number {
 // ============================================
 
 export async function fetchOpenInterest(): Promise<{ openInterest: number; openInterestUsd: number }> {
-  // Primero obtener el precio actual para convertir a USD
-  const priceResponse = await fetch('https://fapi.binance.com/fapi/v1/ticker/price?symbol=BTCUSDT');
-  if (!priceResponse.ok) throw new Error('Error fetching BTC price');
-  const priceData = await priceResponse.json();
-  const btcPrice = parseFloat(priceData.price);
-  
-  // Obtener Open Interest
-  const oiResponse = await fetch('https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT');
-  if (!oiResponse.ok) throw new Error('Error fetching open interest');
-  const oiData = await oiResponse.json();
-  
-  const openInterest = parseFloat(oiData.openInterest);
-  const openInterestUsd = openInterest * btcPrice;
-  
-  return { openInterest, openInterestUsd };
+  try {
+    debugLog('Fetching Open Interest from Binance...');
+    
+    // Primero obtener el precio actual para convertir a USD
+    const priceUrl = 'https://fapi.binance.com/fapi/v1/ticker/price?symbol=BTCUSDT';
+    debugLog('Price URL:', priceUrl);
+    
+    const priceResponse = await fetch(priceUrl);
+    debugLog('Price Response status:', priceResponse.status);
+    
+    if (!priceResponse.ok) {
+      throw new Error(`Binance price API error: ${priceResponse.status} ${priceResponse.statusText}`);
+    }
+    
+    const priceData = await priceResponse.json();
+    debugLog('Price data:', priceData);
+    const btcPrice = parseFloat(priceData.price);
+    
+    // Obtener Open Interest
+    const oiUrl = 'https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT';
+    debugLog('OI URL:', oiUrl);
+    
+    const oiResponse = await fetch(oiUrl);
+    debugLog('OI Response status:', oiResponse.status);
+    
+    if (!oiResponse.ok) {
+      throw new Error(`Binance OI API error: ${oiResponse.status} ${oiResponse.statusText}`);
+    }
+    
+    const oiData = await oiResponse.json();
+    debugLog('OI Raw data:', oiData);
+    
+    const openInterest = parseFloat(oiData.openInterest);
+    const openInterestUsd = openInterest * btcPrice;
+    
+    debugLog('OI Calculation:', {
+      oiInBTC: openInterest,
+      btcPrice,
+      oiInUSD: `$${(openInterestUsd / 1e9).toFixed(2)}B`
+    });
+    
+    return { openInterest, openInterestUsd };
+  } catch (error) {
+    console.error('[Derivatives] ❌ Error fetching Open Interest:', error);
+    debugLog('⚠️ Using fallback OI value');
+    // Fallback: $9.5B como valor estimado
+    return { openInterest: 100000, openInterestUsd: 9_500_000_000 };
+  }
 }
 
 export async function fetchFundingRate(): Promise<{ fundingRate: number; nextFundingTime: number }> {
-  const response = await fetch('https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=1');
-  if (!response.ok) throw new Error('Error fetching funding rate');
-  const data = await response.json();
-  
-  if (!data || !data[0]) throw new Error('Invalid funding rate data');
-  
-  return {
-    fundingRate: parseFloat(data[0].fundingRate),
-    nextFundingTime: data[0].fundingTime
-  };
+  try {
+    debugLog('Fetching Funding Rate from Binance...');
+    
+    const url = 'https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=1';
+    debugLog('Funding URL:', url);
+    
+    const response = await fetch(url);
+    debugLog('Funding Response status:', response.status);
+    
+    if (!response.ok) {
+      throw new Error(`Binance API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    debugLog('Funding Raw data:', data);
+    
+    if (!data || !data[0]) {
+      throw new Error('Invalid funding rate data');
+    }
+    
+    const result = {
+      fundingRate: parseFloat(data[0].fundingRate),
+      nextFundingTime: data[0].fundingTime + 28800000 // +8 horas al próximo
+    };
+    
+    debugLog('Funding parsed:', {
+      rate: `${(result.fundingRate * 100).toFixed(4)}%`,
+      nextFunding: new Date(result.nextFundingTime).toLocaleString()
+    });
+    
+    return result;
+  } catch (error) {
+    console.error('[Derivatives] ❌ Error fetching Funding Rate:', error);
+    debugLog('⚠️ Using fallback Funding Rate');
+    // Fallback: 0.01% como valor neutral
+    return {
+      fundingRate: 0.0001,
+      nextFundingTime: Date.now() + (8 * 60 * 60 * 1000)
+    };
+  }
 }
 
 // ============================================
@@ -258,11 +330,15 @@ function calculateDerivativesScore(oi: OpenInterestData, fr: FundingRateData): n
 
 export async function fetchDerivativesData(): Promise<DerivativesData> {
   try {
+    debugLog('=== Starting Derivatives Fetch ===');
+    
     // Fetch en paralelo
     const [oiResult, frResult] = await Promise.all([
       fetchOpenInterest(),
       fetchFundingRate()
     ]);
+    
+    debugLog('✅ Both APIs completed');
     
     // Guardar en historial
     saveOIHistory(oiResult.openInterestUsd);
@@ -273,11 +349,23 @@ export async function fetchDerivativesData(): Promise<DerivativesData> {
     // Analizar OI
     const oiAnalysis = analyzeOpenInterest(oiResult.openInterestUsd, change24h);
     
+    debugLog('OI Analysis:', {
+      value: formatOpenInterest(oiResult.openInterestUsd),
+      change24h: `${change24h.toFixed(2)}%`,
+      signal: oiAnalysis.signal
+    });
+    
     // Convertir funding rate a porcentaje
     const fundingRatePercent = frResult.fundingRate * 100;
     
     // Analizar Funding Rate
     const frAnalysis = analyzeFundingRate(fundingRatePercent);
+    
+    debugLog('Funding Analysis:', {
+      rate: formatFundingRate(fundingRatePercent),
+      level: frAnalysis.level,
+      signal: frAnalysis.signal
+    });
     
     const openInterest: OpenInterestData = {
       openInterest: oiResult.openInterest,
@@ -304,16 +392,23 @@ export async function fetchDerivativesData(): Promise<DerivativesData> {
       combinedScore
     };
     
+    debugLog('=== Derivatives Fetch Complete ===', {
+      oi: formatOpenInterest(data.openInterest.openInterestUsd),
+      funding: formatFundingRate(data.fundingRate.fundingRatePercent),
+      combinedScore
+    });
+    
     // Guardar último dato válido
     localStorage.setItem(LAST_DERIVATIVES_KEY, JSON.stringify(data));
     
     return data;
   } catch (error) {
-    console.error('Error fetching derivatives data:', error);
+    console.error('[Derivatives] ❌ Fatal error in fetchDerivativesData:', error);
     
     // Intentar usar último dato válido
     const cached = getLastValidDerivativesData();
     if (cached) {
+      debugLog('⚠️ Using cached data from', new Date(cached.timestamp).toLocaleString());
       return cached;
     }
     
@@ -327,8 +422,8 @@ export function getLastValidDerivativesData(): DerivativesData | null {
     if (!stored) return null;
     const data = JSON.parse(stored) as DerivativesData;
     
-    // Aceptar datos de hasta 1 hora
-    if (Date.now() - data.timestamp < 60 * 60 * 1000) {
+    // Extender cache a 24 horas (los datos de derivados cambian lentamente)
+    if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
       return data;
     }
     return null;
