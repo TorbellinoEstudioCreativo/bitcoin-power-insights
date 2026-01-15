@@ -61,6 +61,20 @@ export function TradingLevels({ signal, asset, intradayData, isLoading }: Tradin
       </div>
 
       <div className="space-y-2">
+        {/* Optimal Entry - When price is already at optimal zone */}
+        {optimalEntry && !optimalEntry.isOptimal && (
+          <div className="mb-3 p-3 bg-success/10 border border-success/30 rounded-lg">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-success" />
+              <span className="text-sm font-medium text-success">
+                Precio en zona óptima
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {optimalEntry.triggerCondition}. Entry inmediato recomendado.
+            </p>
+          </div>
+        )}
         {/* Optimal Entry Zone - NEW SECTION */}
         {optimalEntry && optimalEntry.isOptimal && (
           <div className="mb-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
