@@ -22,7 +22,7 @@ export function TradingTabs({ activeTab, onTabChange }: TradingTabsProps) {
       
       <button
         onClick={() => onTabChange('intraday')}
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all relative ${
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
           activeTab === 'intraday'
             ? 'bg-bitcoin text-bitcoin-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
@@ -30,9 +30,6 @@ export function TradingTabs({ activeTab, onTabChange }: TradingTabsProps) {
       >
         <Clock className="w-4 h-4" />
         <span>Intradía</span>
-        <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[10px] font-bold bg-warning text-warning-foreground rounded-full">
-          Próx
-        </span>
       </button>
     </div>
   );
