@@ -120,11 +120,11 @@ function calculateConfluence(
     const weight = TIMEFRAME_WEIGHTS[signal.timeframe];
     totalWeight += weight;
     
-    // Check for agreement (same direction or both neutral/weak)
+    // Check for agreement - NEUTRAL only counts as agreement if current signal is weak (<60%)
     const isAgreement = 
       (currentSignal.direction === signal.direction) ||
       (currentSignal.direction === 'NEUTRAL' && signal.confidence < 50) ||
-      (signal.direction === 'NEUTRAL' && currentSignal.confidence < 50);
+      (signal.direction === 'NEUTRAL' && currentSignal.confidence < 60);
     
     if (isAgreement) {
       agreements++;
@@ -159,16 +159,34 @@ function calculateConfluence(
       const bonus = upperSignal.confidence > 70 ? 10 : 5;
       adjustedConfidence = Math.min(95, adjustedConfidence + bonus);
       console.log(`  ✅ Upper TF (${upper}) agrees - bonus: +${bonus}%`);
+    } else if (upperSignal && 
+               upperSignal.direction === 'NEUTRAL' && 
+               currentSignal.direction !== 'NEUTRAL' &&
+               currentSignal.confidence > 70) {
+      // Upper is NEUTRAL but current is strong = no confirmation penalty
+      const penalty = 15;
+      adjustedConfidence = Math.max(35, adjustedConfidence - penalty);
+      console.log(`  ⚠️ Upper TF (${upper}) is NEUTRAL - no confirmation penalty: -${penalty}%`);
     }
   }
   
-  // Lower timeframe agreement = slight bonus
+  // Lower timeframe analysis
   if (lower) {
     const lowerSignal = adjacentSignals.find(s => s.timeframe === lower);
     if (lowerSignal && lowerSignal.direction === currentSignal.direction) {
+      // Lower agrees = slight bonus
       const bonus = lowerSignal.confidence > 70 ? 5 : 3;
       adjustedConfidence = Math.min(95, adjustedConfidence + bonus);
       console.log(`  ✅ Lower TF (${lower}) agrees - bonus: +${bonus}%`);
+    } else if (lowerSignal && 
+               lowerSignal.direction !== currentSignal.direction && 
+               lowerSignal.direction !== 'NEUTRAL' &&
+               currentSignal.direction !== 'NEUTRAL' &&
+               lowerSignal.confidence > 60) {
+      // Lower contradicts strongly = penalty
+      const penalty = 10;
+      adjustedConfidence = Math.max(35, adjustedConfidence - penalty);
+      console.log(`  ⚠️ Lower TF (${lower}) contradicts: ${lowerSignal.direction} - penalty: -${penalty}%`);
     }
   }
   
