@@ -74,7 +74,7 @@ export function IntradayView() {
 
           {/* Trading Levels (mobile) */}
           <div className="lg:hidden">
-            <TradingLevels signal={signal} asset={selectedAsset} isLoading={isLoading} />
+            <TradingLevels signal={signal} asset={selectedAsset} intradayData={intradayData} isLoading={isLoading} />
           </div>
 
           {/* Recommendation */}
@@ -107,7 +107,7 @@ export function IntradayView() {
 
           {/* Trading Levels (desktop) */}
           <div className="hidden lg:block">
-            <TradingLevels signal={signal} asset={selectedAsset} isLoading={isLoading} />
+            <TradingLevels signal={signal} asset={selectedAsset} intradayData={intradayData} isLoading={isLoading} />
           </div>
         </div>
       </div>
