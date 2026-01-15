@@ -61,6 +61,21 @@ export function TradingLevels({ signal, asset, intradayData, isLoading }: Tradin
       </div>
 
       <div className="space-y-2">
+        {/* Warning - When signal is NEUTRAL */}
+        {signal.direction === 'NEUTRAL' && (
+          <div className="mb-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              <span className="text-sm font-medium text-amber-500">
+                Sin señal clara
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Mercado sin dirección definida. Esperar confirmación de tendencia antes de abrir posición.
+            </p>
+          </div>
+        )}
+
         {/* Optimal Entry - When price is already at optimal zone */}
         {optimalEntry && !optimalEntry.isOptimal && (
           <div className="mb-3 p-3 bg-success/10 border border-success/30 rounded-lg">
