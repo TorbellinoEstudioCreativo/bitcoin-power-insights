@@ -1,4 +1,4 @@
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { fetchUSDTDominance, USDTDominanceData, defaultUSDTDominanceData, getLastValidData } from '@/lib/usdtDominance';
 import { useBitcoinPrice } from './useBitcoinPrice';
 
@@ -13,7 +13,20 @@ export function useUSDTDominance() {
   
   return useQuery<USDTDominanceData>({
     queryKey: ['usdt-dominance', btcData?.change24h],
-    queryFn: () => fetchUSDTDominance(btcData?.change24h ?? undefined),
+    queryFn: async () => {
+      console.log('[useUSDTDominance] Fetching from Binance...');
+      try {
+        const data = await fetchUSDTDominance(btcData?.change24h ?? undefined);
+        console.log('[useUSDTDominance] ✅ Success:', {
+          dominance: `${data.dominance.toFixed(2)}%`,
+          regime: data.regime.label
+        });
+        return data;
+      } catch (error) {
+        console.error('[useUSDTDominance] ❌ Error:', error);
+        throw error;
+      }
+    },
     staleTime: REFETCH_INTERVAL,
     refetchInterval: REFETCH_INTERVAL,
     retry: 3,
