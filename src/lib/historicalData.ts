@@ -1,4 +1,4 @@
-// Historical Data utilities - Fetch real data from CoinGecko
+// Historical Data utilities - Primarily uses Binance API
 
 export interface CandleData {
   timestamp: number;
@@ -51,7 +51,8 @@ function saveToCache<T>(key: string, data: T): void {
   }
 }
 
-// Fetch historical prices from CoinGecko market_chart (365 days daily)
+// @deprecated - Use fetchBinanceKlines instead (CoinGecko has CORS issues)
+// Kept for backwards compatibility but no longer called
 export async function fetchHistoricalPrices(): Promise<HistoricalDataResult> {
   // Check cache first
   const cached = getCachedData<HistoricalDataResult>(CACHE_KEY_PRICES);
@@ -101,8 +102,8 @@ export async function fetchHistoricalPrices(): Promise<HistoricalDataResult> {
   }
 }
 
-// Fetch OHLC data from CoinGecko (for more accurate pivot detection)
-// Returns 4h candles for last 90 days or daily for 365 days depending on 'days' param
+// @deprecated - Use fetchBinanceKlines instead (CoinGecko has CORS issues)
+// Kept for backwards compatibility but no longer called
 export async function fetchOHLC(days: number = 90): Promise<CandleData[]> {
   const cacheKey = `${CACHE_KEY_OHLC}-${days}`;
   

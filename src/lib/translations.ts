@@ -30,7 +30,7 @@ export const translations = {
     // Right sidebar cards
     sidebar: {
       currentPrice: 'Precio Actual',
-      currentPriceTooltip: 'Precio spot de Bitcoin en USD obtenido en tiempo real de CoinGecko',
+      currentPriceTooltip: 'Precio spot de Bitcoin en USD obtenido en tiempo real de Binance',
       fairValue: 'Fair Value (Modelo)',
       fairValueTooltip: 'Precio justo calculado con el modelo Power Law basado en {days} días desde el génesis de Bitcoin (3 enero 2009)',
       powerLawDays: 'Power Law • {days} días desde génesis',
@@ -246,7 +246,7 @@ export const translations = {
     // Right sidebar cards
     sidebar: {
       currentPrice: 'Current Price',
-      currentPriceTooltip: 'Real-time Bitcoin spot price in USD from CoinGecko',
+      currentPriceTooltip: 'Real-time Bitcoin spot price in USD from Binance',
       fairValue: 'Fair Value (Model)',
       fairValueTooltip: 'Fair price calculated with Power Law model based on {days} days since Bitcoin genesis (Jan 3, 2009)',
       powerLawDays: 'Power Law • {days} days since genesis',
