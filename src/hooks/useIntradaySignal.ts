@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import { IntradayData } from './useIntradayData';
+import { IntradayData, IntradayTimeframe } from './useIntradayData';
 import { DerivativesData } from '@/lib/derivatives';
+import { calculateIntradayTPs, IntradayTPLevels } from '@/lib/intradayCalculations';
 
 // ============================================================================
 // TYPES
@@ -24,6 +25,13 @@ export interface IntradaySignal {
   takeProfit2: number;
   takeProfit3: number;
   riskRewardRatio: number;
+  // NEW: Dynamic TP data
+  expectedDuration: string;
+  basedOnATR: boolean;
+  tp1Percent: number;
+  tp2Percent: number;
+  tp3Percent: number;
+  stopLossPercent: number;
 }
 
 // ============================================================================
@@ -32,14 +40,15 @@ export interface IntradaySignal {
 
 export function useIntradaySignal(
   intradayData: IntradayData | null | undefined,
-  derivativesData: DerivativesData | null | undefined
+  derivativesData: DerivativesData | null | undefined,
+  timeframe: IntradayTimeframe = '15m'
 ): IntradaySignal | null {
   return useMemo(() => {
     if (!intradayData) return null;
 
-    console.log('[useIntradaySignal] Calculating signal...');
+    console.log('[useIntradaySignal] Calculating signal for timeframe:', timeframe);
 
-    const { currentPrice, emas, change24h, volatility } = intradayData;
+    const { currentPrice, emas, change24h, volatility, candles } = intradayData;
     const factors: SignalFactor[] = [];
     let bullishScore = 0;
     let bearishScore = 0;
@@ -145,7 +154,6 @@ export function useIntradaySignal(
     // =========================================================================
     // CALCULATE FINAL SIGNAL
     // =========================================================================
-    const totalScore = bullishScore + bearishScore;
     const netScore = bullishScore - bearishScore;
     
     let direction: SignalDirection;
@@ -163,58 +171,54 @@ export function useIntradaySignal(
     }
 
     // =========================================================================
-    // CALCULATE TRADING LEVELS
+    // CALCULATE DYNAMIC TRADING LEVELS (NEW)
     // =========================================================================
-    const riskPercent = direction === 'LONG' ? 2.5 : 2.5;
-    const reward1Percent = 1.5;
-    const reward2Percent = 3.0;
-    const reward3Percent = 5.0;
+    const candleData = candles?.map(c => ({
+      high: c.high,
+      low: c.low,
+      close: c.close
+    }));
     
-    let entryPrice = currentPrice;
-    let stopLoss: number;
-    let takeProfit1: number;
-    let takeProfit2: number;
-    let takeProfit3: number;
-    
-    if (direction === 'LONG') {
-      stopLoss = currentPrice * (1 - riskPercent / 100);
-      takeProfit1 = currentPrice * (1 + reward1Percent / 100);
-      takeProfit2 = currentPrice * (1 + reward2Percent / 100);
-      takeProfit3 = currentPrice * (1 + reward3Percent / 100);
-    } else if (direction === 'SHORT') {
-      stopLoss = currentPrice * (1 + riskPercent / 100);
-      takeProfit1 = currentPrice * (1 - reward1Percent / 100);
-      takeProfit2 = currentPrice * (1 - reward2Percent / 100);
-      takeProfit3 = currentPrice * (1 - reward3Percent / 100);
-    } else {
-      // Neutral - no trade
-      stopLoss = currentPrice * 0.975;
-      takeProfit1 = currentPrice * 1.015;
-      takeProfit2 = currentPrice * 1.03;
-      takeProfit3 = currentPrice * 1.05;
-    }
-    
-    const riskRewardRatio = reward2Percent / riskPercent;
+    const tpLevels: IntradayTPLevels = calculateIntradayTPs(
+      currentPrice,
+      direction,
+      timeframe,
+      candleData
+    );
 
     const signal: IntradaySignal = {
       direction,
       confidence,
       factors,
-      entryPrice,
-      stopLoss,
-      takeProfit1,
-      takeProfit2,
-      takeProfit3,
-      riskRewardRatio
+      entryPrice: currentPrice,
+      stopLoss: tpLevels.stopLoss,
+      takeProfit1: tpLevels.tp1,
+      takeProfit2: tpLevels.tp2,
+      takeProfit3: tpLevels.tp3,
+      riskRewardRatio: tpLevels.riskRewardRatio,
+      // NEW: Dynamic TP data
+      expectedDuration: tpLevels.expectedDuration,
+      basedOnATR: tpLevels.basedOnATR,
+      tp1Percent: tpLevels.tp1Percent,
+      tp2Percent: tpLevels.tp2Percent,
+      tp3Percent: tpLevels.tp3Percent,
+      stopLossPercent: tpLevels.stopLossPercent
     };
 
     console.log(`[useIntradaySignal] ✅ Signal: ${direction} (${confidence.toFixed(0)}% confidence)`, {
       bullishScore,
       bearishScore,
       netScore,
-      factors: factors.length
+      factors: factors.length,
+      timeframe,
+      tpLevels: {
+        tp1: `${tpLevels.tp1Percent.toFixed(2)}%`,
+        tp2: `${tpLevels.tp2Percent.toFixed(2)}%`,
+        tp3: `${tpLevels.tp3Percent.toFixed(2)}%`,
+        basedOnATR: tpLevels.basedOnATR
+      }
     });
 
     return signal;
-  }, [intradayData, derivativesData]);
+  }, [intradayData, derivativesData, timeframe]);
 }

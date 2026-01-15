@@ -1,5 +1,5 @@
 import React from 'react';
-import { Target, Shield, TrendingUp, Percent, Clock, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Target, Shield, TrendingUp, Percent, Clock, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 import { IntradaySignal } from '@/hooks/useIntradaySignal';
 import { IntradayAsset, IntradayData } from '@/hooks/useIntradayData';
 import { useOptimalEntry } from '@/hooks/useOptimalEntry';
@@ -52,13 +52,33 @@ export function TradingLevels({ signal, asset, intradayData, isLoading }: Tradin
           <Target className="h-4 w-4" />
           Niveles de Operación
         </h3>
-        <span className={cn(
-          "text-xs font-medium px-2 py-0.5 rounded",
-          isLong ? "bg-success/20 text-success" : "bg-danger/20 text-danger"
-        )}>
-          R:R {signal.riskRewardRatio.toFixed(1)}:1
-        </span>
+        <div className="flex items-center gap-2">
+          {/* Expected Duration Badge */}
+          <span className="text-xs font-medium px-2 py-0.5 rounded bg-secondary text-muted-foreground flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {signal.expectedDuration}
+          </span>
+          {/* R:R Badge */}
+          <span className={cn(
+            "text-xs font-medium px-2 py-0.5 rounded",
+            signal.direction === 'NEUTRAL' 
+              ? "bg-muted text-muted-foreground" 
+              : isLong ? "bg-success/20 text-success" : "bg-danger/20 text-danger"
+          )}>
+            R:R {signal.riskRewardRatio.toFixed(1)}:1
+          </span>
+        </div>
       </div>
+
+      {/* ATR Info Badge */}
+      {signal.basedOnATR && signal.direction !== 'NEUTRAL' && (
+        <div className="mb-3 p-2 bg-info/10 border border-info/20 rounded-lg flex items-center gap-2">
+          <Info className="h-3.5 w-3.5 text-info" />
+          <span className="text-xs text-info">
+            TPs ajustados según volatilidad actual (ATR)
+          </span>
+        </div>
+      )}
 
       <div className="space-y-2">
         {/* Warning - When signal is NEUTRAL */}

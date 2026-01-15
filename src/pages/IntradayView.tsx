@@ -26,8 +26,8 @@ export function IntradayView() {
     intradayData?.volatility ?? 1
   );
   
-  // Calculate signal
-  const signal = useIntradaySignal(intradayData, derivativesData);
+  // Calculate signal (pass timeframe for dynamic TPs)
+  const signal = useIntradaySignal(intradayData, derivativesData, timeframe);
 
   const isLoading = isLoadingIntraday || isLoadingDerivatives;
 
