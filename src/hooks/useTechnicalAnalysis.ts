@@ -20,7 +20,7 @@ export interface TechnicalAnalysisResult {
   resistencias: NivelSoporte[];
   isLoadingHistorical: boolean;
   usingRealData: boolean;
-  dataSource: 'Binance' | 'CoinGecko' | 'Simulated';
+  dataSource: 'Binance' | 'Cache' | 'Simulated';
 }
 
 export function useTechnicalAnalysis(
@@ -37,7 +37,7 @@ export function useTechnicalAnalysis(
       : generarPreciosSimulados(btcPrice, 250);
     
     const usingRealData = !!(historicalData?.prices && historicalData.prices.length >= 200);
-    const dataSource: 'Binance' | 'CoinGecko' | 'Simulated' = usingRealData 
+    const dataSource: 'Binance' | 'Cache' | 'Simulated' = usingRealData 
       ? (source === 'None' ? 'Simulated' : source) 
       : 'Simulated';
     
