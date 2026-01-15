@@ -6,6 +6,7 @@ import { MainContent } from "@/components/trading/MainContent";
 import { Footer } from "@/components/trading/Footer";
 import { PortfolioInput } from "@/components/trading/PortfolioInput";
 import { TradingTabs } from "@/components/layout/TradingTabs";
+import { IntradayView } from "@/pages/IntradayView";
 import { usePowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 import { useDebouncedValue } from "@/hooks/useDebounce";
 import { useBitcoinPrice } from "@/hooks/useBitcoinPrice";
@@ -104,17 +105,8 @@ const Index = () => {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center p-8">
-              <div className="text-6xl mb-4">🚧</div>
-              <h2 className="text-2xl font-bold text-foreground mb-2">Vista Intradía</h2>
-              <p className="text-muted-foreground mb-4">
-                Análisis intradía con métricas avanzadas de derivados
-              </p>
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-warning/10 text-warning rounded-lg">
-                <span>Próximamente disponible</span>
-              </div>
-            </div>
+          <div className="flex-1 overflow-auto">
+            <IntradayView />
           </div>
         )}
       </div>
