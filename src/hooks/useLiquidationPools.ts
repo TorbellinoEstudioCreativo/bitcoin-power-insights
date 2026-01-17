@@ -1,8 +1,13 @@
 import { useMemo } from 'react';
-import { IntradayAsset } from './useIntradayData';
+import { IntradayAsset, IntradayTimeframe, IntradayCandle } from './useIntradayData';
+import { DerivativesData } from '@/lib/derivatives';
+import { 
+  calculateIntelligentZones, 
+  IntelligentLiquidationData 
+} from '@/lib/liquidationCalculations';
 
 // ============================================================================
-// TYPES
+// TYPES (Extended for backward compatibility)
 // ============================================================================
 
 export interface LiquidationPool {
@@ -18,86 +23,71 @@ export interface LiquidationData {
   suggestedStopLoss: number;
   suggestedStopLossPercent: number;
   riskLevel: 'low' | 'medium' | 'high';
+  // New intelligent calculation fields
+  method: 'atr_volatility' | 'coinglass_real' | 'fallback_fixed';
+  heatLevel: 'hot' | 'warm' | 'cold';
+  calculationReason: string;
+  atrValue?: number;
+  volatilityMultiplier?: number;
 }
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-// Typical liquidation zones based on common leverage levels
-const LIQUIDATION_DISTANCE_PERCENT = 2.5; // ±2.5% for ~40x leverage
-const STOP_LOSS_BUFFER_PERCENT = 0.5; // 0.5% below liquidation pool
-
-// Estimated liquidity multipliers by asset
-const LIQUIDITY_MULTIPLIERS: Record<IntradayAsset, number> = {
-  BTC: 1.0,
-  ETH: 0.7,
-  BNB: 0.3
-};
 
 // ============================================================================
 // MAIN HOOK
 // ============================================================================
 
+/**
+ * Calculates intelligent liquidation zones based on ATR, volatility, and derivatives data.
+ * Adapts zones dynamically based on timeframe and market conditions.
+ */
 export function useLiquidationPools(
   currentPrice: number,
   asset: IntradayAsset = 'BTC',
+  timeframe: IntradayTimeframe = '15m',
+  candles: IntradayCandle[] = [],
+  derivativesData: DerivativesData | null = null,
   volatility: number = 1.0
 ): LiquidationData | null {
   return useMemo(() => {
     if (!currentPrice || currentPrice <= 0) return null;
 
-    console.log(`[useLiquidationPools] Calculating pools for ${asset} at $${currentPrice.toFixed(2)}`);
+    console.log(`[useLiquidationPools] Calculating intelligent zones for ${asset} ${timeframe} @ $${currentPrice.toFixed(2)}`);
 
-    // Adjust liquidation distance based on volatility
-    const adjustedDistance = LIQUIDATION_DISTANCE_PERCENT * (1 + volatility * 0.1);
-    
-    // Calculate liquidation pool prices
-    const longLiquidationPrice = currentPrice * (1 - adjustedDistance / 100);
-    const shortLiquidationPrice = currentPrice * (1 + adjustedDistance / 100);
-    
-    // Calculate stop loss (below long liquidation pool)
-    const suggestedStopLoss = longLiquidationPrice * (1 - STOP_LOSS_BUFFER_PERCENT / 100);
-    const suggestedStopLossPercent = ((currentPrice - suggestedStopLoss) / currentPrice) * 100;
-    
-    // Estimate liquidity based on asset and price
-    const baseLiquidity = asset === 'BTC' ? 50 : asset === 'ETH' ? 30 : 10;
-    const liquidityMultiplier = LIQUIDITY_MULTIPLIERS[asset];
-    
-    const formatLiquidity = (base: number): string => {
-      const value = base * liquidityMultiplier;
-      return `~$${value.toFixed(0)}M`;
-    };
+    // Use intelligent calculation
+    const intelligentData = calculateIntelligentZones(
+      currentPrice,
+      asset,
+      timeframe,
+      candles,
+      derivativesData,
+      volatility
+    );
 
-    // Determine risk level based on volatility
-    const riskLevel: 'low' | 'medium' | 'high' = 
-      volatility > 2 ? 'high' : volatility > 1 ? 'medium' : 'low';
+    if (!intelligentData) {
+      console.warn('[useLiquidationPools] Intelligent calculation returned null');
+      return null;
+    }
 
+    // Convert to LiquidationData format (backward compatible)
     const result: LiquidationData = {
-      longLiquidationPool: {
-        price: longLiquidationPrice,
-        type: 'long',
-        estimatedLiquidity: formatLiquidity(baseLiquidity),
-        distancePercent: adjustedDistance
-      },
-      shortLiquidationPool: {
-        price: shortLiquidationPrice,
-        type: 'short',
-        estimatedLiquidity: formatLiquidity(baseLiquidity * 0.8),
-        distancePercent: adjustedDistance
-      },
-      suggestedStopLoss,
-      suggestedStopLossPercent,
-      riskLevel
+      longLiquidationPool: intelligentData.longLiquidationPool,
+      shortLiquidationPool: intelligentData.shortLiquidationPool,
+      suggestedStopLoss: intelligentData.suggestedStopLoss,
+      suggestedStopLossPercent: intelligentData.suggestedStopLossPercent,
+      riskLevel: intelligentData.riskLevel,
+      method: intelligentData.method,
+      heatLevel: intelligentData.heatLevel,
+      calculationReason: intelligentData.calculationReason,
+      atrValue: intelligentData.atrValue,
+      volatilityMultiplier: intelligentData.volatilityMultiplier
     };
 
-    console.log(`[useLiquidationPools] ✅ Pools calculated:`, {
-      longPool: `$${longLiquidationPrice.toFixed(2)} (-${adjustedDistance.toFixed(1)}%)`,
-      shortPool: `$${shortLiquidationPrice.toFixed(2)} (+${adjustedDistance.toFixed(1)}%)`,
-      sl: `$${suggestedStopLoss.toFixed(2)} (-${suggestedStopLossPercent.toFixed(1)}%)`,
-      risk: riskLevel
+    console.log(`[useLiquidationPools] ✅ Zones ready:`, {
+      method: result.method,
+      heatLevel: result.heatLevel,
+      longPool: `$${result.longLiquidationPool.price.toFixed(0)}`,
+      shortPool: `$${result.shortLiquidationPool.price.toFixed(0)}`
     });
 
     return result;
-  }, [currentPrice, asset, volatility]);
+  }, [currentPrice, asset, timeframe, candles, derivativesData, volatility]);
 }
