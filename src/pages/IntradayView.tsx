@@ -33,10 +33,13 @@ export function IntradayView() {
     adjacentTFs.upper ?? '4h'
   );
   
-  // Calculate liquidation pools
+  // Calculate intelligent liquidation pools (ATR + volatility based)
   const liquidationData = useLiquidationPools(
     intradayData?.currentPrice ?? 0,
     selectedAsset,
+    timeframe,
+    intradayData?.candles ?? [],
+    derivativesData ?? null,
     intradayData?.volatility ?? 1
   );
   

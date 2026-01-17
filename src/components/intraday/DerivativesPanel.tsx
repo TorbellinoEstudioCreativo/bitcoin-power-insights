@@ -1,8 +1,14 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, Clock, AlertTriangle, Target, Shield } from 'lucide-react';
+import { TrendingUp, TrendingDown, Clock, AlertTriangle, Target, Shield, Activity, Info } from 'lucide-react';
 import { DerivativesData, formatOpenInterest, formatFundingRate } from '@/lib/derivatives';
 import { LiquidationData } from '@/hooks/useLiquidationPools';
 import { cn } from '@/lib/utils';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface DerivativesPanelProps {
   derivativesData: DerivativesData | null | undefined;
@@ -54,6 +60,66 @@ export function DerivativesPanel({
     return 'text-muted-foreground';
   };
 
+  // Get method badge info
+  const getMethodBadge = () => {
+    if (!liquidationData) return null;
+    
+    switch (liquidationData.method) {
+      case 'atr_volatility':
+        return {
+          text: 'ATR + Volatilidad',
+          color: 'bg-primary/20 text-primary border-primary/30'
+        };
+      case 'coinglass_real':
+        return {
+          text: 'Coinglass Real',
+          color: 'bg-success/20 text-success border-success/30'
+        };
+      case 'fallback_fixed':
+        return {
+          text: 'Estimación Base',
+          color: 'bg-muted text-muted-foreground border-border'
+        };
+      default:
+        return null;
+    }
+  };
+
+  // Get heat level alert
+  const getHeatLevelAlert = () => {
+    if (!liquidationData) return null;
+    
+    switch (liquidationData.heatLevel) {
+      case 'hot':
+        return {
+          text: 'Pool crítico cercano - Reducir apalancamiento',
+          icon: AlertTriangle,
+          color: 'bg-danger/10 border-danger/30 text-danger'
+        };
+      case 'warm':
+        return {
+          text: 'Zona de alerta - Monitorear posiciones',
+          icon: Activity,
+          color: 'bg-warning/10 border-warning/30 text-warning'
+        };
+      default:
+        return null;
+    }
+  };
+
+  // Get distance badge
+  const getDistanceBadge = (distancePercent: number) => {
+    if (distancePercent < 1.5) {
+      return { text: 'Muy cerca', color: 'text-danger' };
+    } else if (distancePercent < 2.5) {
+      return { text: 'Cerca', color: 'text-warning' };
+    }
+    return { text: 'Distante', color: 'text-success' };
+  };
+
+  const methodBadge = getMethodBadge();
+  const heatAlert = getHeatLevelAlert();
+
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <h3 className="text-sm font-medium text-muted-foreground mb-4">Derivados en Tiempo Real</h3>
@@ -101,10 +167,48 @@ export function DerivativesPanel({
       {/* Liquidation Pools */}
       {liquidationData && (
         <>
-          <h4 className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-2">
-            <AlertTriangle className="h-3 w-3" />
-            Zonas de Liquidación Estimadas
-          </h4>
+          {/* Header with method badge */}
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+              <AlertTriangle className="h-3 w-3" />
+              Zonas de Liquidación Inteligentes
+            </h4>
+            
+            {methodBadge && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className={cn(
+                      "text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 cursor-help",
+                      methodBadge.color
+                    )}>
+                      <Activity className="h-2.5 w-2.5" />
+                      {methodBadge.text}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    <p className="text-xs">{liquidationData.calculationReason}</p>
+                    {liquidationData.atrValue && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        ATR: ${liquidationData.atrValue.toFixed(2)}
+                      </p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+
+          {/* Heat Level Alert */}
+          {heatAlert && (
+            <div className={cn(
+              "flex items-center gap-2 px-3 py-2 rounded-lg border mb-3 text-xs",
+              heatAlert.color
+            )}>
+              <heatAlert.icon className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>{heatAlert.text}</span>
+            </div>
+          )}
           
           <div className="grid grid-cols-3 gap-2">
             {/* Long Pool (below price) */}
@@ -116,9 +220,17 @@ export function DerivativesPanel({
               <p className="text-sm font-bold text-foreground">
                 ${liquidationData.longLiquidationPool.price.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </p>
-              <p className="text-[10px] text-muted-foreground">
-                -{liquidationData.longLiquidationPool.distancePercent.toFixed(1)}%
-              </p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-[10px] text-muted-foreground">
+                  -{liquidationData.longLiquidationPool.distancePercent.toFixed(1)}%
+                </p>
+                <span className={cn(
+                  "text-[9px] font-medium",
+                  getDistanceBadge(liquidationData.longLiquidationPool.distancePercent).color
+                )}>
+                  {getDistanceBadge(liquidationData.longLiquidationPool.distancePercent).text}
+                </span>
+              </div>
               <p className="text-[10px] text-danger/70">
                 {liquidationData.longLiquidationPool.estimatedLiquidity}
               </p>
@@ -133,9 +245,17 @@ export function DerivativesPanel({
               <p className="text-sm font-bold text-foreground">
                 ${liquidationData.shortLiquidationPool.price.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </p>
-              <p className="text-[10px] text-muted-foreground">
-                +{liquidationData.shortLiquidationPool.distancePercent.toFixed(1)}%
-              </p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-[10px] text-muted-foreground">
+                  +{liquidationData.shortLiquidationPool.distancePercent.toFixed(1)}%
+                </p>
+                <span className={cn(
+                  "text-[9px] font-medium",
+                  getDistanceBadge(liquidationData.shortLiquidationPool.distancePercent).color
+                )}>
+                  {getDistanceBadge(liquidationData.shortLiquidationPool.distancePercent).text}
+                </span>
+              </div>
               <p className="text-[10px] text-success/70">
                 {liquidationData.shortLiquidationPool.estimatedLiquidity}
               </p>
@@ -150,7 +270,7 @@ export function DerivativesPanel({
               <p className="text-sm font-bold text-foreground">
                 ${liquidationData.suggestedStopLoss.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </p>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground mt-1">
                 -{liquidationData.suggestedStopLossPercent.toFixed(1)}%
               </p>
               <p className={cn(
