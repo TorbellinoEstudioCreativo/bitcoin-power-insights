@@ -5,6 +5,7 @@ import {
   calculateIntelligentZones, 
   IntelligentLiquidationData 
 } from '@/lib/liquidationCalculations';
+import { useRealLiquidations } from './useRealLiquidations';
 
 // ============================================================================
 // TYPES (Extended for backward compatibility)
@@ -15,6 +16,11 @@ export interface LiquidationPool {
   type: 'long' | 'short';
   estimatedLiquidity: string;
   distancePercent: number;
+  // Coinglass metadata (optional)
+  volume?: number;
+  significance?: 'critical' | 'high' | 'medium' | 'low';
+  leverageProfile?: 'low' | 'medium' | 'high';
+  lastOccurrence?: number;
 }
 
 export interface LiquidationData {
@@ -23,12 +29,18 @@ export interface LiquidationData {
   suggestedStopLoss: number;
   suggestedStopLossPercent: number;
   riskLevel: 'low' | 'medium' | 'high';
-  // New intelligent calculation fields
+  // Calculation method fields
   method: 'atr_volatility' | 'coinglass_real' | 'fallback_fixed';
   heatLevel: 'hot' | 'warm' | 'cold';
   calculationReason: string;
   atrValue?: number;
   volatilityMultiplier?: number;
+  // Coinglass-specific fields
+  longShortRatio?: {
+    longPercent: number;
+    shortPercent: number;
+    trend: 'bullish' | 'bearish' | 'neutral';
+  };
 }
 
 // ============================================================================
@@ -36,8 +48,8 @@ export interface LiquidationData {
 // ============================================================================
 
 /**
- * Calculates intelligent liquidation zones based on ATR, volatility, and derivatives data.
- * Adapts zones dynamically based on timeframe and market conditions.
+ * Calculates intelligent liquidation zones.
+ * Prioritizes real Coinglass data when available, falls back to ATR calculation.
  */
 export function useLiquidationPools(
   currentPrice: number,
@@ -47,12 +59,113 @@ export function useLiquidationPools(
   derivativesData: DerivativesData | null = null,
   volatility: number = 1.0
 ): LiquidationData | null {
+  // Try to fetch real data from Coinglass
+  const { 
+    data: coinglassData, 
+    isLoading: isLoadingCoinglass,
+    error: coinglassError 
+  } = useRealLiquidations(asset, currentPrice, 'NEUTRAL');
+
   return useMemo(() => {
     if (!currentPrice || currentPrice <= 0) return null;
 
-    console.log(`[useLiquidationPools] Calculating intelligent zones for ${asset} ${timeframe} @ $${currentPrice.toFixed(2)}`);
+    // PRIORITY 1: Use real Coinglass data if available
+    if (coinglassData && !coinglassError && coinglassData.clusters.length > 0) {
+      console.log(`[useLiquidationPools] ✅ Using REAL Coinglass data for ${asset}`);
+      
+      const { zonesAbove, zonesBelow, criticalZone, longShortRatio } = coinglassData;
+      
+      // Find most significant zone below (long liquidations)
+      const criticalBelow = zonesBelow.find(z => 
+        z.significance === 'critical' || z.significance === 'high'
+      ) || zonesBelow[0];
+      
+      // Find most significant zone above (short liquidations)
+      const criticalAbove = zonesAbove.find(z => 
+        z.significance === 'critical' || z.significance === 'high'
+      ) || zonesAbove[0];
+      
+      // Calculate distances
+      const longPoolPrice = criticalBelow?.priceRange.avg || currentPrice * 0.975;
+      const shortPoolPrice = criticalAbove?.priceRange.avg || currentPrice * 1.025;
+      const longDistance = ((currentPrice - longPoolPrice) / currentPrice) * 100;
+      const shortDistance = ((shortPoolPrice - currentPrice) / currentPrice) * 100;
+      
+      // Calculate SL: below the long pool with buffer
+      const slBuffer = 0.5;
+      const slPrice = criticalBelow 
+        ? criticalBelow.priceRange.min * (1 - slBuffer / 100)
+        : currentPrice * 0.97;
+      const slDistance = ((currentPrice - slPrice) / currentPrice) * 100;
+      
+      // Determine risk based on proximity
+      let riskLevel: 'low' | 'medium' | 'high' = 'low';
+      if (longDistance < 1.5 || shortDistance < 1.5) riskLevel = 'high';
+      else if (longDistance < 2.5 || shortDistance < 2.5) riskLevel = 'medium';
+      
+      // Determine heat level
+      let heatLevel: 'hot' | 'warm' | 'cold' = 'cold';
+      if (criticalZone && 
+          (criticalZone.significance === 'critical' || criticalZone.significance === 'high')) {
+        const criticalDistance = Math.abs(
+          ((criticalZone.priceRange.avg - currentPrice) / currentPrice) * 100
+        );
+        if (criticalDistance < 1.5) heatLevel = 'hot';
+        else if (criticalDistance < 3) heatLevel = 'warm';
+      }
 
-    // Use intelligent calculation
+      const result: LiquidationData = {
+        longLiquidationPool: {
+          price: longPoolPrice,
+          type: 'long',
+          estimatedLiquidity: criticalBelow 
+            ? `$${criticalBelow.totalVolume.toFixed(0)}M` 
+            : '~$50M',
+          distancePercent: longDistance,
+          volume: criticalBelow?.totalVolume,
+          significance: criticalBelow?.significance,
+          leverageProfile: criticalBelow?.leverageProfile,
+          lastOccurrence: criticalBelow?.lastOccurrence
+        },
+        shortLiquidationPool: {
+          price: shortPoolPrice,
+          type: 'short',
+          estimatedLiquidity: criticalAbove 
+            ? `$${criticalAbove.totalVolume.toFixed(0)}M` 
+            : '~$40M',
+          distancePercent: shortDistance,
+          volume: criticalAbove?.totalVolume,
+          significance: criticalAbove?.significance,
+          leverageProfile: criticalAbove?.leverageProfile,
+          lastOccurrence: criticalAbove?.lastOccurrence
+        },
+        suggestedStopLoss: slPrice,
+        suggestedStopLossPercent: slDistance,
+        riskLevel,
+        method: 'coinglass_real',
+        heatLevel,
+        calculationReason: `Datos reales de Coinglass (${coinglassData.liquidations.length} liquidaciones analizadas)`,
+        longShortRatio: longShortRatio ? {
+          longPercent: longShortRatio.longPercent,
+          shortPercent: longShortRatio.shortPercent,
+          trend: longShortRatio.trend
+        } : undefined
+      };
+
+      console.log(`[useLiquidationPools] Coinglass result:`, {
+        method: result.method,
+        heatLevel: result.heatLevel,
+        longPool: `$${result.longLiquidationPool.price.toFixed(0)}`,
+        shortPool: `$${result.shortLiquidationPool.price.toFixed(0)}`,
+        clusters: coinglassData.clusters.length
+      });
+
+      return result;
+    }
+
+    // FALLBACK: Use ATR-based intelligent calculation
+    console.log(`[useLiquidationPools] Using ATR fallback for ${asset} ${timeframe}`);
+
     const intelligentData = calculateIntelligentZones(
       currentPrice,
       asset,
@@ -76,12 +189,14 @@ export function useLiquidationPools(
       riskLevel: intelligentData.riskLevel,
       method: intelligentData.method,
       heatLevel: intelligentData.heatLevel,
-      calculationReason: intelligentData.calculationReason,
+      calculationReason: coinglassError 
+        ? `${intelligentData.calculationReason} (Coinglass no disponible)`
+        : intelligentData.calculationReason,
       atrValue: intelligentData.atrValue,
       volatilityMultiplier: intelligentData.volatilityMultiplier
     };
 
-    console.log(`[useLiquidationPools] ✅ Zones ready:`, {
+    console.log(`[useLiquidationPools] ✅ ATR zones ready:`, {
       method: result.method,
       heatLevel: result.heatLevel,
       longPool: `$${result.longLiquidationPool.price.toFixed(0)}`,
@@ -89,5 +204,5 @@ export function useLiquidationPools(
     });
 
     return result;
-  }, [currentPrice, asset, timeframe, candles, derivativesData, volatility]);
+  }, [currentPrice, asset, timeframe, candles, derivativesData, volatility, coinglassData, coinglassError]);
 }

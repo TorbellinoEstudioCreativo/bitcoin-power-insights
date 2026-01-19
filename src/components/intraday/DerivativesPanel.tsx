@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, Clock, AlertTriangle, Target, Shield, Activity, Info } from 'lucide-react';
+import { TrendingUp, TrendingDown, Clock, AlertTriangle, Shield, Activity, Info, Zap, History } from 'lucide-react';
 import { DerivativesData, formatOpenInterest, formatFundingRate } from '@/lib/derivatives';
 import { LiquidationData } from '@/hooks/useLiquidationPools';
 import { cn } from '@/lib/utils';
@@ -65,20 +65,23 @@ export function DerivativesPanel({
     if (!liquidationData) return null;
     
     switch (liquidationData.method) {
+      case 'coinglass_real':
+        return {
+          text: '🎯 Datos Reales',
+          color: 'bg-success/20 text-success border-success/30',
+          icon: Zap
+        };
       case 'atr_volatility':
         return {
           text: 'ATR + Volatilidad',
-          color: 'bg-primary/20 text-primary border-primary/30'
-        };
-      case 'coinglass_real':
-        return {
-          text: 'Coinglass Real',
-          color: 'bg-success/20 text-success border-success/30'
+          color: 'bg-primary/20 text-primary border-primary/30',
+          icon: Activity
         };
       case 'fallback_fixed':
         return {
           text: 'Estimación Base',
-          color: 'bg-muted text-muted-foreground border-border'
+          color: 'bg-muted text-muted-foreground border-border',
+          icon: Info
         };
       default:
         return null;
@@ -115,6 +118,29 @@ export function DerivativesPanel({
       return { text: 'Cerca', color: 'text-warning' };
     }
     return { text: 'Distante', color: 'text-success' };
+  };
+
+  // Format time ago
+  const formatTimeAgo = (timestamp: number) => {
+    const diff = Date.now() - timestamp;
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    if (hours < 1) return 'Hace <1h';
+    if (hours < 24) return `Hace ${hours}h`;
+    return `Hace ${Math.floor(hours / 24)}d`;
+  };
+
+  // Get significance badge
+  const getSignificanceBadge = (significance?: string) => {
+    switch (significance) {
+      case 'critical':
+        return { text: '🔥 Crítico', color: 'bg-danger/30 text-danger' };
+      case 'high':
+        return { text: '⚠️ Alto', color: 'bg-warning/30 text-warning' };
+      case 'medium':
+        return { text: 'Moderado', color: 'bg-primary/30 text-primary' };
+      default:
+        return { text: 'Bajo', color: 'bg-muted text-muted-foreground' };
+    }
   };
 
   const methodBadge = getMethodBadge();
@@ -164,6 +190,35 @@ export function DerivativesPanel({
         </div>
       </div>
 
+      {/* Long/Short Ratio (if Coinglass data available) */}
+      {liquidationData?.longShortRatio && (
+        <div className="bg-secondary/30 rounded-lg p-3 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-muted-foreground">Long/Short Ratio</span>
+            <span className={cn(
+              "text-xs font-medium px-2 py-0.5 rounded",
+              liquidationData.longShortRatio.trend === 'bullish' ? 'bg-success/20 text-success' :
+              liquidationData.longShortRatio.trend === 'bearish' ? 'bg-danger/20 text-danger' :
+              'bg-muted text-muted-foreground'
+            )}>
+              {liquidationData.longShortRatio.trend === 'bullish' ? '📈 Alcista' :
+               liquidationData.longShortRatio.trend === 'bearish' ? '📉 Bajista' : 'Neutral'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-2 bg-danger/30 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-success rounded-full transition-all"
+                style={{ width: `${liquidationData.longShortRatio.longPercent}%` }}
+              />
+            </div>
+            <span className="text-xs font-mono text-muted-foreground">
+              {liquidationData.longShortRatio.longPercent.toFixed(0)}% / {liquidationData.longShortRatio.shortPercent.toFixed(0)}%
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Liquidation Pools */}
       {liquidationData && (
         <>
@@ -171,7 +226,7 @@ export function DerivativesPanel({
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-2">
               <AlertTriangle className="h-3 w-3" />
-              Zonas de Liquidación Inteligentes
+              Zonas de Liquidación
             </h4>
             
             {methodBadge && (
@@ -182,7 +237,7 @@ export function DerivativesPanel({
                       "text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 cursor-help",
                       methodBadge.color
                     )}>
-                      <Activity className="h-2.5 w-2.5" />
+                      <methodBadge.icon className="h-2.5 w-2.5" />
                       {methodBadge.text}
                     </span>
                   </TooltipTrigger>
@@ -234,6 +289,24 @@ export function DerivativesPanel({
               <p className="text-[10px] text-danger/70">
                 {liquidationData.longLiquidationPool.estimatedLiquidity}
               </p>
+              
+              {/* Coinglass metadata */}
+              {liquidationData.method === 'coinglass_real' && liquidationData.longLiquidationPool.significance && (
+                <div className="mt-2 pt-2 border-t border-danger/20 space-y-1">
+                  <span className={cn(
+                    "text-[9px] px-1.5 py-0.5 rounded inline-block",
+                    getSignificanceBadge(liquidationData.longLiquidationPool.significance).color
+                  )}>
+                    {getSignificanceBadge(liquidationData.longLiquidationPool.significance).text}
+                  </span>
+                  {liquidationData.longLiquidationPool.lastOccurrence && (
+                    <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                      <History className="h-2.5 w-2.5" />
+                      {formatTimeAgo(liquidationData.longLiquidationPool.lastOccurrence)}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Short Pool (above price) */}
@@ -259,6 +332,24 @@ export function DerivativesPanel({
               <p className="text-[10px] text-success/70">
                 {liquidationData.shortLiquidationPool.estimatedLiquidity}
               </p>
+              
+              {/* Coinglass metadata */}
+              {liquidationData.method === 'coinglass_real' && liquidationData.shortLiquidationPool.significance && (
+                <div className="mt-2 pt-2 border-t border-success/20 space-y-1">
+                  <span className={cn(
+                    "text-[9px] px-1.5 py-0.5 rounded inline-block",
+                    getSignificanceBadge(liquidationData.shortLiquidationPool.significance).color
+                  )}>
+                    {getSignificanceBadge(liquidationData.shortLiquidationPool.significance).text}
+                  </span>
+                  {liquidationData.shortLiquidationPool.lastOccurrence && (
+                    <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                      <History className="h-2.5 w-2.5" />
+                      {formatTimeAgo(liquidationData.shortLiquidationPool.lastOccurrence)}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Suggested SL */}
