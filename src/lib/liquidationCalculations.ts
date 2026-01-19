@@ -45,6 +45,12 @@ interface TimeframeLiquidationConfig {
 }
 
 export const TIMEFRAME_LIQUIDATION_CONFIG: Record<IntradayTimeframe, TimeframeLiquidationConfig> = {
+  '1m': {
+    atrMultiplier: 1.0,
+    baseDistancePercent: 0.5,
+    slBufferPercent: 0.2,
+    atrPeriod: 14
+  },
   '5m': {
     atrMultiplier: 1.5,
     baseDistancePercent: 1.0,
@@ -57,12 +63,6 @@ export const TIMEFRAME_LIQUIDATION_CONFIG: Record<IntradayTimeframe, TimeframeLi
     slBufferPercent: 0.5,
     atrPeriod: 14
   },
-  '30m': {
-    atrMultiplier: 2.5,
-    baseDistancePercent: 2.0,
-    slBufferPercent: 0.7,
-    atrPeriod: 14
-  },
   '1h': {
     atrMultiplier: 3.0,
     baseDistancePercent: 2.5,
@@ -73,6 +73,12 @@ export const TIMEFRAME_LIQUIDATION_CONFIG: Record<IntradayTimeframe, TimeframeLi
     atrMultiplier: 4.0,
     baseDistancePercent: 3.5,
     slBufferPercent: 1.0,
+    atrPeriod: 14
+  },
+  '1d': {
+    atrMultiplier: 5.0,
+    baseDistancePercent: 4.5,
+    slBufferPercent: 1.2,
     atrPeriod: 14
   }
 };

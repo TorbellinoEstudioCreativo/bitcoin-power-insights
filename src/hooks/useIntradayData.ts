@@ -7,7 +7,9 @@ import { EMA } from 'technicalindicators';
 // ============================================================================
 
 export type IntradayAsset = 'BTC' | 'ETH' | 'BNB';
-export type IntradayTimeframe = '5m' | '15m' | '30m' | '1h' | '4h';
+export type IntradayTimeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
+export type HiddenTimeframe = '1w';
+export type AllTimeframes = IntradayTimeframe | HiddenTimeframe;
 
 export interface IntradayCandle {
   timestamp: number;
@@ -52,12 +54,24 @@ const ASSET_SYMBOLS: Record<IntradayAsset, string> = {
   BNB: 'BNBUSDT'
 };
 
-const TIMEFRAME_INTERVALS: Record<IntradayTimeframe, string> = {
+const TIMEFRAME_INTERVALS: Record<AllTimeframes, string> = {
+  '1m': '1m',
   '5m': '5m',
   '15m': '15m',
-  '30m': '30m',
   '1h': '1h',
-  '4h': '4h'
+  '4h': '4h',
+  '1d': '1d',
+  '1w': '1w'
+};
+
+const CANDLE_LIMITS: Record<AllTimeframes, number> = {
+  '1m': 200,
+  '5m': 150,
+  '15m': 100,
+  '1h': 100,
+  '4h': 100,
+  '1d': 90,
+  '1w': 52
 };
 
 // ============================================================================
@@ -66,15 +80,16 @@ const TIMEFRAME_INTERVALS: Record<IntradayTimeframe, string> = {
 
 async function fetchKlines(
   asset: IntradayAsset,
-  timeframe: IntradayTimeframe,
-  limit: number = 100
+  timeframe: AllTimeframes,
+  limit?: number
 ): Promise<IntradayCandle[]> {
   const symbol = ASSET_SYMBOLS[asset];
   const interval = TIMEFRAME_INTERVALS[timeframe];
+  const candleLimit = limit ?? CANDLE_LIMITS[timeframe];
   
-  console.log(`[useIntradayData] Fetching ${asset} ${timeframe} klines...`);
+  console.log(`[useIntradayData] Fetching ${asset} ${timeframe} klines (${candleLimit})...`);
   
-  const url = `${BINANCE_API}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+  const url = `${BINANCE_API}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${candleLimit}`;
   const response = await fetch(url);
   
   if (!response.ok) {
@@ -185,7 +200,7 @@ function calculateVolatility(candles: IntradayCandle[]): number {
 
 export function useIntradayData(
   asset: IntradayAsset = 'BTC',
-  timeframe: IntradayTimeframe = '15m'
+  timeframe: AllTimeframes = '15m'
 ) {
   const queryResult = useQuery<IntradayData>({
     queryKey: ['intraday-data', asset, timeframe],
@@ -193,7 +208,7 @@ export function useIntradayData(
       console.log(`[useIntradayData] Starting fetch for ${asset} ${timeframe}...`);
       
       const [candles, ticker] = await Promise.all([
-        fetchKlines(asset, timeframe, 100),
+        fetchKlines(asset, timeframe),
         fetch24hTicker(asset)
       ]);
       

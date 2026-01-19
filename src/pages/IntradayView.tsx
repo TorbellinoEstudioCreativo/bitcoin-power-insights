@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { useIntradayData, IntradayAsset, IntradayTimeframe } from '@/hooks/useIntradayData';
+import { useIntradayData, IntradayAsset, IntradayTimeframe, AllTimeframes } from '@/hooks/useIntradayData';
 import { useLiquidationPools } from '@/hooks/useLiquidationPools';
-import { useIntradaySignal } from '@/hooks/useIntradaySignal';
+import { useIntradaySignal, AdjacentTFData } from '@/hooks/useIntradaySignal';
 import { useDerivatives } from '@/hooks/useDerivatives';
-import { getAdjacentTimeframes } from '@/lib/multiTimeframeAnalysis';
+import { getValidationTimeframes } from '@/lib/multiTimeframeAnalysis';
 import { AssetSelector } from '@/components/intraday/AssetSelector';
 import { PriceCard } from '@/components/intraday/PriceCard';
 import { IntradayChart } from '@/components/intraday/IntradayChart';
@@ -16,22 +16,49 @@ export function IntradayView() {
   const [selectedAsset, setSelectedAsset] = useState<IntradayAsset>('BTC');
   const [timeframe, setTimeframe] = useState<IntradayTimeframe>('15m');
 
-  // Get adjacent timeframes for confluence analysis
-  const adjacentTFs = useMemo(() => getAdjacentTimeframes(timeframe), [timeframe]);
+  // Get validation timeframes for confluence analysis (from matrix)
+  const validationTFs = useMemo(() => {
+    const { lower, upper } = getValidationTimeframes(timeframe);
+    // Combine and deduplicate, max 3 TFs to avoid rate limits
+    const allTFs = [...new Set([...lower, ...upper])];
+    return allTFs.slice(0, 3);
+  }, [timeframe]);
 
   // Fetch data for current timeframe
   const { data: intradayData, isLoading: isLoadingIntraday, analysis } = useIntradayData(selectedAsset, timeframe);
   const { data: derivativesData, isLoading: isLoadingDerivatives } = useDerivatives();
   
-  // Fetch data for adjacent timeframes (for confluence)
-  const { data: lowerTFData } = useIntradayData(
+  // Fetch data for validation timeframes (dynamic based on matrix)
+  // We always call hooks in the same order with fixed positions
+  const { data: tf1Data } = useIntradayData(
     selectedAsset, 
-    adjacentTFs.lower ?? '5m'
+    (validationTFs[0] ?? '5m') as AllTimeframes
   );
-  const { data: upperTFData } = useIntradayData(
+  const { data: tf2Data } = useIntradayData(
     selectedAsset, 
-    adjacentTFs.upper ?? '4h'
+    (validationTFs[1] ?? '1h') as AllTimeframes
   );
+  const { data: tf3Data } = useIntradayData(
+    selectedAsset, 
+    (validationTFs[2] ?? '4h') as AllTimeframes
+  );
+  
+  // Build adjacent data for confluence
+  const adjacentData: AdjacentTFData = useMemo(() => {
+    const signals: AdjacentTFData['signals'] = [];
+    
+    if (validationTFs[0] && tf1Data) {
+      signals.push({ timeframe: validationTFs[0], data: tf1Data });
+    }
+    if (validationTFs[1] && tf2Data) {
+      signals.push({ timeframe: validationTFs[1], data: tf2Data });
+    }
+    if (validationTFs[2] && tf3Data) {
+      signals.push({ timeframe: validationTFs[2], data: tf3Data });
+    }
+    
+    return { signals };
+  }, [validationTFs, tf1Data, tf2Data, tf3Data]);
   
   // Calculate intelligent liquidation pools (ATR + volatility based)
   const liquidationData = useLiquidationPools(
@@ -48,12 +75,7 @@ export function IntradayView() {
     intradayData, 
     derivativesData, 
     timeframe,
-    {
-      lowerTFData: adjacentTFs.lower ? lowerTFData : null,
-      upperTFData: adjacentTFs.upper ? upperTFData : null,
-      lowerTF: adjacentTFs.lower,
-      upperTF: adjacentTFs.upper
-    }
+    adjacentData
   );
 
   const isLoading = isLoadingIntraday || isLoadingDerivatives;

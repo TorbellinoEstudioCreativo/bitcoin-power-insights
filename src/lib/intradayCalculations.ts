@@ -17,6 +17,13 @@ export interface TimeframeTPs {
  * Basado en movimientos típicos por período
  */
 export const TIMEFRAME_TP_CONFIG: Record<IntradayTimeframe, TimeframeTPs> = {
+  '1m': {
+    tp1Percent: 0.15,      // 0.15% - Scalping rápido
+    tp2Percent: 0.3,
+    tp3Percent: 0.5,
+    stopLossPercent: 0.2,
+    expectedDuration: '5-15 min'
+  },
   '5m': {
     tp1Percent: 0.3,      // 0.3% - Alcanzable en 15-30 min
     tp2Percent: 0.6,      // 0.6% - Alcanzable en 30-45 min
@@ -31,13 +38,6 @@ export const TIMEFRAME_TP_CONFIG: Record<IntradayTimeframe, TimeframeTPs> = {
     stopLossPercent: 0.8,
     expectedDuration: '1-2 horas'
   },
-  '30m': {
-    tp1Percent: 0.7,      // 0.7% - Alcanzable en 1 hora
-    tp2Percent: 1.4,      // 1.4% - Alcanzable en 2 horas
-    tp3Percent: 2.1,      // 2.1% - Alcanzable en 3 horas
-    stopLossPercent: 1.2,
-    expectedDuration: '2-3 horas'
-  },
   '1h': {
     tp1Percent: 1.0,      // 1.0% - Alcanzable en 2 horas
     tp2Percent: 2.0,      // 2.0% - Alcanzable en 4 horas
@@ -51,6 +51,13 @@ export const TIMEFRAME_TP_CONFIG: Record<IntradayTimeframe, TimeframeTPs> = {
     tp3Percent: 5.0,      // 5.0% - Alcanzable en 16-24 horas
     stopLossPercent: 2.5,
     expectedDuration: '8-24 horas'
+  },
+  '1d': {
+    tp1Percent: 2.5,      // 2.5% - Alcanzable en 1-2 días
+    tp2Percent: 5.0,      // 5.0% - Alcanzable en 2-3 días
+    tp3Percent: 8.0,      // 8.0% - Alcanzable en 3-5 días
+    stopLossPercent: 3.5,
+    expectedDuration: '2-5 días'
   }
 };
 

@@ -21,7 +21,7 @@ interface IntradayChartProps {
   isLoading?: boolean;
 }
 
-const TIMEFRAMES: IntradayTimeframe[] = ['5m', '15m', '30m', '1h', '4h'];
+const TIMEFRAMES: IntradayTimeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
 export function IntradayChart({
   candles,
@@ -41,6 +41,9 @@ export function IntradayChart({
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
+    if (timeframe === '1d') {
+      return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' });
+    }
     if (timeframe === '4h' || timeframe === '1h') {
       return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) + 
              ' ' + date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });

@@ -2,12 +2,12 @@
 // MULTI-TIMEFRAME CONFLUENCE ANALYSIS
 // ============================================================================
 
-import { IntradayTimeframe } from '@/hooks/useIntradayData';
+import { IntradayTimeframe, AllTimeframes } from '@/hooks/useIntradayData';
 
 export type Direction = 'LONG' | 'SHORT' | 'NEUTRAL';
 
 export interface TimeframeSignal {
-  timeframe: IntradayTimeframe;
+  timeframe: AllTimeframes;
   direction: Direction;
   confidence: number;
   emaAlignment: 'bullish' | 'bearish' | 'neutral';
@@ -25,33 +25,82 @@ export interface ConfluenceResult {
 // Higher timeframes carry more weight (less noise, more reliable)
 // ============================================================================
 
-const TIMEFRAME_WEIGHTS: Record<IntradayTimeframe, number> = {
-  '5m': 1.0,   // Most noise
-  '15m': 1.5,  // Moderate
-  '30m': 2.0,  // Balanced
-  '1h': 2.5,   // High reliability
-  '4h': 3.0    // Highest reliability
+const TIMEFRAME_WEIGHTS: Record<AllTimeframes, number> = {
+  '1m': 0.5,   // Most noise
+  '5m': 1.0,
+  '15m': 1.5,
+  '1h': 2.0,
+  '4h': 2.5,
+  '1d': 3.0,
+  '1w': 3.5    // Highest reliability
 };
 
-const TIMEFRAME_ORDER: IntradayTimeframe[] = ['5m', '15m', '30m', '1h', '4h'];
+// ============================================================================
+// CONFLUENCE MATRIX
+// Each timeframe validates with specific TFs (not necessarily adjacent)
+// ============================================================================
+
+type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
+
+const CONFLUENCE_MATRIX: Record<Timeframe, {
+  lower: AllTimeframes[];
+  upper: AllTimeframes[];
+}> = {
+  '1m': {
+    lower: [],
+    upper: ['5m', '1h']
+  },
+  '5m': {
+    lower: ['1m'],
+    upper: ['1h']
+  },
+  '15m': {
+    lower: ['5m'],
+    upper: ['1h']
+  },
+  '1h': {
+    lower: ['15m'],
+    upper: ['4h']
+  },
+  '4h': {
+    lower: ['1h'],
+    upper: ['1d']
+  },
+  '1d': {
+    lower: ['4h'],
+    upper: ['1w']
+  }
+};
 
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
 /**
- * Get adjacent timeframes (lower and upper)
+ * Get validation timeframes from the confluence matrix
+ */
+export function getValidationTimeframes(current: IntradayTimeframe): {
+  lower: AllTimeframes[];
+  upper: AllTimeframes[];
+} {
+  return CONFLUENCE_MATRIX[current as Timeframe] ?? { lower: [], upper: [] };
+}
+
+/**
+ * @deprecated Use getValidationTimeframes instead
+ * Get adjacent timeframes (legacy compatibility)
  */
 export function getAdjacentTimeframes(current: IntradayTimeframe): {
   lower?: IntradayTimeframe;
   upper?: IntradayTimeframe;
 } {
-  const index = TIMEFRAME_ORDER.indexOf(current);
+  const validation = getValidationTimeframes(current);
   
-  return {
-    lower: index > 0 ? TIMEFRAME_ORDER[index - 1] : undefined,
-    upper: index < TIMEFRAME_ORDER.length - 1 ? TIMEFRAME_ORDER[index + 1] : undefined
-  };
+  // Return first lower and first upper that are visible (not 1w)
+  const lower = validation.lower.find(tf => tf !== '1w') as IntradayTimeframe | undefined;
+  const upper = validation.upper.find(tf => tf !== '1w') as IntradayTimeframe | undefined;
+  
+  return { lower, upper };
 }
 
 /**
@@ -109,7 +158,7 @@ function calculateConfluence(
 } {
   console.log('[MultiTF] Analyzing confluence for', currentSignal.timeframe);
   
-  const { lower, upper } = getAdjacentTimeframes(currentSignal.timeframe);
+  const validation = getValidationTimeframes(currentSignal.timeframe as IntradayTimeframe);
   
   let agreements = 0;
   let disagreements = 0;
@@ -141,54 +190,56 @@ function calculateConfluence(
     ? (weightedAgreement / totalWeight) * 100 
     : 50;
   
-  // Adjust confidence based on adjacent timeframes
+  // Adjust confidence based on validation timeframes
   let adjustedConfidence = currentSignal.confidence;
   
-  // Upper timeframe disagreement = heavy penalty
-  if (upper) {
-    const upperSignal = adjacentSignals.find(s => s.timeframe === upper);
-    if (upperSignal && 
-        upperSignal.direction !== currentSignal.direction && 
-        upperSignal.direction !== 'NEUTRAL' &&
-        currentSignal.direction !== 'NEUTRAL') {
-      const penalty = upperSignal.confidence > 60 ? 25 : 15;
-      adjustedConfidence = Math.max(30, adjustedConfidence - penalty);
-      console.log(`  ⚠️ Upper TF (${upper}) disagrees: ${upperSignal.direction} - penalty: -${penalty}%`);
-    } else if (upperSignal && upperSignal.direction === currentSignal.direction) {
-      // Upper agrees = bonus
-      const bonus = upperSignal.confidence > 70 ? 10 : 5;
-      adjustedConfidence = Math.min(95, adjustedConfidence + bonus);
-      console.log(`  ✅ Upper TF (${upper}) agrees - bonus: +${bonus}%`);
-    } else if (upperSignal && 
-               upperSignal.direction === 'NEUTRAL' && 
-               currentSignal.direction !== 'NEUTRAL' &&
-               currentSignal.confidence > 70) {
-      // Upper is NEUTRAL but current is strong = no confirmation penalty
-      const penalty = 15;
-      adjustedConfidence = Math.max(35, adjustedConfidence - penalty);
-      console.log(`  ⚠️ Upper TF (${upper}) is NEUTRAL - no confirmation penalty: -${penalty}%`);
+  // Validate with UPPER timeframes (MULTIPLE) - heavier penalties
+  validation.upper.forEach(tf => {
+    const signal = adjacentSignals.find(s => s.timeframe === tf);
+    if (signal) {
+      if (signal.direction !== currentSignal.direction && 
+          signal.direction !== 'NEUTRAL' &&
+          currentSignal.direction !== 'NEUTRAL') {
+        // Contradiction = heavy penalty
+        const penalty = signal.confidence > 70 ? 25 : 15;
+        adjustedConfidence = Math.max(30, adjustedConfidence - penalty);
+        console.log(`  ⚠️ Upper TF (${tf}) contradicts: ${signal.direction} - penalty: -${penalty}%`);
+      } else if (signal.direction === currentSignal.direction) {
+        // Agreement = bonus
+        const bonus = signal.confidence > 70 ? 10 : 5;
+        adjustedConfidence = Math.min(95, adjustedConfidence + bonus);
+        console.log(`  ✅ Upper TF (${tf}) agrees - bonus: +${bonus}%`);
+      } else if (signal.direction === 'NEUTRAL' && 
+                 currentSignal.direction !== 'NEUTRAL' &&
+                 currentSignal.confidence > 70) {
+        // Upper is NEUTRAL but current is strong = no confirmation penalty
+        const penalty = 15;
+        adjustedConfidence = Math.max(35, adjustedConfidence - penalty);
+        console.log(`  ⚠️ Upper TF (${tf}) is NEUTRAL - no confirmation penalty: -${penalty}%`);
+      }
     }
-  }
+  });
   
-  // Lower timeframe analysis
-  if (lower) {
-    const lowerSignal = adjacentSignals.find(s => s.timeframe === lower);
-    if (lowerSignal && lowerSignal.direction === currentSignal.direction) {
-      // Lower agrees = slight bonus
-      const bonus = lowerSignal.confidence > 70 ? 5 : 3;
-      adjustedConfidence = Math.min(95, adjustedConfidence + bonus);
-      console.log(`  ✅ Lower TF (${lower}) agrees - bonus: +${bonus}%`);
-    } else if (lowerSignal && 
-               lowerSignal.direction !== currentSignal.direction && 
-               lowerSignal.direction !== 'NEUTRAL' &&
-               currentSignal.direction !== 'NEUTRAL' &&
-               lowerSignal.confidence > 60) {
-      // Lower contradicts strongly = penalty
-      const penalty = 10;
-      adjustedConfidence = Math.max(35, adjustedConfidence - penalty);
-      console.log(`  ⚠️ Lower TF (${lower}) contradicts: ${lowerSignal.direction} - penalty: -${penalty}%`);
+  // Validate with LOWER timeframes (MULTIPLE) - lighter adjustments
+  validation.lower.forEach(tf => {
+    const signal = adjacentSignals.find(s => s.timeframe === tf);
+    if (signal) {
+      if (signal.direction === currentSignal.direction && signal.confidence > 70) {
+        // Lower agrees strongly = slight bonus
+        const bonus = 5;
+        adjustedConfidence = Math.min(95, adjustedConfidence + bonus);
+        console.log(`  ✅ Lower TF (${tf}) agrees strongly - bonus: +${bonus}%`);
+      } else if (signal.direction !== currentSignal.direction && 
+                 signal.direction !== 'NEUTRAL' &&
+                 currentSignal.direction !== 'NEUTRAL' &&
+                 signal.confidence > 60) {
+        // Lower contradicts strongly = penalty
+        const penalty = 10;
+        adjustedConfidence = Math.max(35, adjustedConfidence - penalty);
+        console.log(`  ⚠️ Lower TF (${tf}) contradicts: ${signal.direction} - penalty: -${penalty}%`);
+      }
     }
-  }
+  });
   
   // Full confluence bonus
   if (disagreements === 0 && agreements >= 2) {
@@ -228,7 +279,7 @@ export function generateMultiTFRecommendation(
   }
   
   const analysis = calculateConfluence(currentSignal, adjacentSignals);
-  const { lower, upper } = getAdjacentTimeframes(currentSignal.timeframe);
+  const validation = getValidationTimeframes(currentSignal.timeframe as IntradayTimeframe);
   
   const warnings: string[] = [];
   let recommendation = '';
@@ -246,16 +297,16 @@ export function generateMultiTFRecommendation(
     warnings.push('Alta divergencia entre timeframes');
   }
   
-  // Specific warnings
-  if (upper) {
-    const upperSignal = adjacentSignals.find(s => s.timeframe === upper);
+  // Specific warnings for upper TF conflicts
+  validation.upper.forEach(tf => {
+    const upperSignal = adjacentSignals.find(s => s.timeframe === tf);
     if (upperSignal && 
         upperSignal.direction !== currentSignal.direction &&
         upperSignal.direction !== 'NEUTRAL' &&
         currentSignal.direction !== 'NEUTRAL') {
-      warnings.push(`TF ${upper} indica ${upperSignal.direction}`);
+      warnings.push(`TF ${tf} indica ${upperSignal.direction}`);
     }
-  }
+  });
   
   if (currentSignal.confidence > 75 && analysis.adjustedConfidence < 60) {
     warnings.push('Confianza reducida por divergencia con TFs superiores');
