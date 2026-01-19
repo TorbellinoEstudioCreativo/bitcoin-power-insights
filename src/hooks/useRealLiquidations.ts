@@ -5,6 +5,7 @@ import {
   clusterLiquidations,
   findNearbyZones,
   calculateSmartSL,
+  COINGLASS_ENABLED,
   type CoinglassLiquidationData
 } from '@/lib/coinglass';
 import type { IntradayAsset } from '@/hooks/useIntradayData';
@@ -72,8 +73,8 @@ export function useRealLiquidations(
     staleTime: 5 * 60 * 1000,        // 5 minutes
     gcTime: 10 * 60 * 1000,          // 10 minutes cache
     refetchInterval: 5 * 60 * 1000,  // Refetch every 5 minutes
-    enabled: !!currentPrice && currentPrice > 0,
-    retry: 2
+    enabled: COINGLASS_ENABLED && !!currentPrice && currentPrice > 0,
+    retry: 1
   });
 }
 

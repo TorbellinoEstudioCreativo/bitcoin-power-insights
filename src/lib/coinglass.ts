@@ -5,6 +5,16 @@
 import { supabase } from '@/integrations/supabase/client';
 
 // ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+/**
+ * Set to true when you have an active Coinglass subscription.
+ * When false, all API calls immediately return null (silent fallback to ATR).
+ */
+export const COINGLASS_ENABLED = false;
+
+// ============================================================================
 // TYPES
 // ============================================================================
 
@@ -57,19 +67,25 @@ export interface CoinglassLiquidationData {
 // ============================================================================
 
 async function callCoinglassProxy(endpoint: string, params: Record<string, string | number>) {
-  console.log('[Coinglass] Calling proxy:', endpoint, params);
+  // Skip API calls when Coinglass is disabled
+  if (!COINGLASS_ENABLED) {
+    console.debug('[Coinglass] Disabled - skipping API call');
+    return null;
+  }
+  
+  console.debug('[Coinglass] Calling proxy:', endpoint, params);
   
   const { data, error } = await supabase.functions.invoke('coinglass-proxy', {
     body: { endpoint, params }
   });
   
   if (error) {
-    console.error('[Coinglass] Proxy error:', error);
+    console.debug('[Coinglass] Proxy error:', error);
     throw new Error(`Coinglass proxy error: ${error.message}`);
   }
   
   if (data?.error) {
-    console.error('[Coinglass] API error:', data.error, data.message);
+    console.debug('[Coinglass] API error:', data.error, data.message);
     throw new Error(`Coinglass API error: ${data.message || data.error}`);
   }
   
@@ -84,7 +100,11 @@ export async function fetchLiquidationHistory(
   symbol: string,
   timeType: '1h' | '4h' | '12h' | '24h' = '24h'
 ): Promise<HistoricalLiquidation[]> {
-  console.log('[Coinglass] Fetching liquidation history for', symbol, timeType);
+  if (!COINGLASS_ENABLED) {
+    return [];
+  }
+  
+  console.debug('[Coinglass] Fetching liquidation history for', symbol, timeType);
   
   try {
     // v3 API uses different endpoint and parameters
@@ -92,6 +112,8 @@ export async function fetchLiquidationHistory(
       symbol: symbol.toUpperCase(),
       range: timeType
     });
+    
+    if (!result) return [];
     
     // v3 returns { code, msg, data } where data is an array
     const rawData = result.data || [];
@@ -144,12 +166,12 @@ export async function fetchLiquidationHistory(
       });
     }
     
-    console.log('[Coinglass] ✅ Retrieved', liquidations.length, 'liquidation events');
+    console.debug('[Coinglass] ✅ Retrieved', liquidations.length, 'liquidation events');
     return liquidations;
     
   } catch (error) {
-    console.error('[Coinglass] ❌ Error fetching liquidation history:', error);
-    throw error;
+    console.debug('[Coinglass] Liquidation history unavailable:', error);
+    return [];
   }
 }
 
@@ -157,8 +179,12 @@ export async function fetchLiquidationHistory(
  * Fetch long/short ratio from Coinglass API v3
  * Endpoint: /api/futures/globalLongShortAccountRatio/history
  */
-export async function fetchLongShortRatio(symbol: string): Promise<LongShortRatio> {
-  console.log('[Coinglass] Fetching long/short ratio for', symbol);
+export async function fetchLongShortRatio(symbol: string): Promise<LongShortRatio | null> {
+  if (!COINGLASS_ENABLED) {
+    return null;
+  }
+  
+  console.debug('[Coinglass] Fetching long/short ratio for', symbol);
   
   try {
     // v3 uses different endpoint path
@@ -167,6 +193,8 @@ export async function fetchLongShortRatio(symbol: string): Promise<LongShortRati
       interval: 'h4',
       limit: 24
     });
+    
+    if (!result) return null;
     
     const rawData = result.data || [];
     
@@ -210,12 +238,12 @@ export async function fetchLongShortRatio(symbol: string): Promise<LongShortRati
       exchanges
     };
     
-    console.log('[Coinglass] ✅ Long/Short:', `${avgLong.toFixed(1)}% / ${avgShort.toFixed(1)}%`);
+    console.debug('[Coinglass] ✅ Long/Short:', `${avgLong.toFixed(1)}% / ${avgShort.toFixed(1)}%`);
     return ratio;
     
   } catch (error) {
-    console.error('[Coinglass] ❌ Error fetching long/short ratio:', error);
-    throw error;
+    console.debug('[Coinglass] Long/short ratio unavailable:', error);
+    return null;
   }
 }
 
