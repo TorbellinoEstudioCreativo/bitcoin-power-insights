@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { IntradayData, IntradayTimeframe } from './useIntradayData';
+import { IntradayData, IntradayTimeframe, AllTimeframes } from './useIntradayData';
 import { DerivativesData } from '@/lib/derivatives';
 import { calculateIntradayTPs, IntradayTPLevels } from '@/lib/intradayCalculations';
 import { 
@@ -60,10 +60,10 @@ export interface IntradaySignal {
 // ============================================================================
 
 export interface AdjacentTFData {
-  lowerTFData?: IntradayData | null;
-  upperTFData?: IntradayData | null;
-  lowerTF?: IntradayTimeframe;
-  upperTF?: IntradayTimeframe;
+  signals: Array<{
+    timeframe: AllTimeframes;
+    data: IntradayData | null;
+  }>;
 }
 
 export function useIntradaySignal(
@@ -224,64 +224,50 @@ export function useIntradaySignal(
     let multiTFWarnings: string[] | undefined;
     let adjacentSignals: IntradaySignal['adjacentSignals'];
 
-    if (adjacentData) {
+    if (adjacentData && adjacentData.signals.length > 0) {
       const adjacentTFSignals: TimeframeSignal[] = [];
       
-      // Build signal from lower timeframe
-      if (adjacentData.lowerTFData && adjacentData.lowerTF) {
-        const lowerEmas = adjacentData.lowerTFData.emas;
-        const lowerDirection = getDirectionFromEMAs(lowerEmas.ema9, lowerEmas.ema21, lowerEmas.ema50);
-        const lowerAlignment = getEMAAlignment(lowerEmas.ema9, lowerEmas.ema21, lowerEmas.ema50);
-        
-        // Quick confidence calculation based on EMA alignment
-        let lowerConfidence = 50;
-        if (lowerAlignment === 'bullish') lowerConfidence = 70;
-        else if (lowerAlignment === 'bearish') lowerConfidence = 70;
-        
-        adjacentTFSignals.push({
-          timeframe: adjacentData.lowerTF,
-          direction: lowerDirection,
-          confidence: lowerConfidence,
-          emaAlignment: lowerAlignment
-        });
-        
-        adjacentSignals = {
-          ...adjacentSignals,
-          lower: {
-            timeframe: adjacentData.lowerTF,
-            direction: lowerDirection,
-            confidence: lowerConfidence
+      // Build signals from all adjacent timeframes
+      adjacentData.signals.forEach(({ timeframe: tfName, data }) => {
+        if (data) {
+          const tfEmas = data.emas;
+          const tfDirection = getDirectionFromEMAs(tfEmas.ema9, tfEmas.ema21, tfEmas.ema50);
+          const tfAlignment = getEMAAlignment(tfEmas.ema9, tfEmas.ema21, tfEmas.ema50);
+          
+          // Quick confidence calculation based on EMA alignment
+          let tfConfidence = 50;
+          if (tfAlignment === 'bullish') tfConfidence = 70;
+          else if (tfAlignment === 'bearish') tfConfidence = 70;
+          
+          adjacentTFSignals.push({
+            timeframe: tfName,
+            direction: tfDirection,
+            confidence: tfConfidence,
+            emaAlignment: tfAlignment
+          });
+          
+          // Store first lower/upper for UI display (legacy compatibility)
+          if (!adjacentSignals?.lower) {
+            adjacentSignals = {
+              ...adjacentSignals,
+              lower: {
+                timeframe: tfName,
+                direction: tfDirection,
+                confidence: tfConfidence
+              }
+            };
+          } else if (!adjacentSignals?.upper) {
+            adjacentSignals = {
+              ...adjacentSignals,
+              upper: {
+                timeframe: tfName,
+                direction: tfDirection,
+                confidence: tfConfidence
+              }
+            };
           }
-        };
-      }
-      
-      // Build signal from upper timeframe
-      if (adjacentData.upperTFData && adjacentData.upperTF) {
-        const upperEmas = adjacentData.upperTFData.emas;
-        const upperDirection = getDirectionFromEMAs(upperEmas.ema9, upperEmas.ema21, upperEmas.ema50);
-        const upperAlignment = getEMAAlignment(upperEmas.ema9, upperEmas.ema21, upperEmas.ema50);
-        
-        // Quick confidence calculation based on EMA alignment
-        let upperConfidence = 50;
-        if (upperAlignment === 'bullish') upperConfidence = 70;
-        else if (upperAlignment === 'bearish') upperConfidence = 70;
-        
-        adjacentTFSignals.push({
-          timeframe: adjacentData.upperTF,
-          direction: upperDirection,
-          confidence: upperConfidence,
-          emaAlignment: upperAlignment
-        });
-        
-        adjacentSignals = {
-          ...adjacentSignals,
-          upper: {
-            timeframe: adjacentData.upperTF,
-            direction: upperDirection,
-            confidence: upperConfidence
-          }
-        };
-      }
+        }
+      });
       
       // Apply confluence analysis if we have adjacent signals
       if (adjacentTFSignals.length > 0) {
@@ -302,7 +288,8 @@ export function useIntradaySignal(
           original: `${confidence.toFixed(0)}%`,
           adjusted: `${adjustedConfidence}%`,
           confluenceScore: `${confluenceScore.toFixed(0)}%`,
-          recommendation: multiTFRecommendation
+          recommendation: multiTFRecommendation,
+          adjacentTFs: adjacentTFSignals.map(s => `${s.timeframe}: ${s.direction}`)
         });
       }
     }
