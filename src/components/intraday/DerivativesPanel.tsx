@@ -1,7 +1,8 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, Clock, AlertTriangle, Shield, Activity, Info, Zap, History } from 'lucide-react';
+import { TrendingUp, TrendingDown, Clock, AlertTriangle, Shield, Activity, Info, Zap, History, Layers } from 'lucide-react';
 import { DerivativesData, formatOpenInterest, formatFundingRate } from '@/lib/derivatives';
 import { LiquidationData } from '@/hooks/useLiquidationPools';
+import { LiquidationCluster } from '@/lib/coinglass';
 import { cn } from '@/lib/utils';
 import {
   Tooltip,
@@ -143,8 +144,62 @@ export function DerivativesPanel({
     }
   };
 
+  // Render a single zone item
+  const renderZoneItem = (zone: LiquidationCluster, type: 'long' | 'short', currentPrice: number) => {
+    const distance = type === 'long' 
+      ? ((currentPrice - zone.priceRange.avg) / currentPrice) * 100
+      : ((zone.priceRange.avg - currentPrice) / currentPrice) * 100;
+    
+    const distanceBadge = getDistanceBadge(Math.abs(distance));
+    const significanceBadge = getSignificanceBadge(zone.significance);
+    
+    return (
+      <div 
+        key={`${type}-${zone.priceRange.avg}`}
+        className={cn(
+          "flex items-center justify-between p-2 rounded-lg border",
+          type === 'long' 
+            ? 'bg-danger/5 border-danger/20' 
+            : 'bg-success/5 border-success/20'
+        )}
+      >
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-foreground">
+              ${zone.priceRange.avg.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            </span>
+            <span className={cn("text-[10px] font-medium", distanceBadge.color)}>
+              {type === 'long' ? '-' : '+'}{Math.abs(distance).toFixed(1)}%
+            </span>
+          </div>
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className={cn("text-[9px] px-1 py-0.5 rounded", significanceBadge.color)}>
+              {significanceBadge.text}
+            </span>
+            <span className={cn(
+              "text-[9px]",
+              type === 'long' ? 'text-danger/70' : 'text-success/70'
+            )}>
+              ${zone.totalVolume.toFixed(0)}M
+            </span>
+          </div>
+        </div>
+        {zone.lastOccurrence && (
+          <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+            <History className="h-2.5 w-2.5" />
+            {formatTimeAgo(zone.lastOccurrence)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const methodBadge = getMethodBadge();
   const heatAlert = getHeatLevelAlert();
+  
+  // Check if we have multiple zones from Coinglass
+  const hasMultipleZones = liquidationData?.method === 'coinglass_real' && 
+    (liquidationData.zonesAbove?.length || liquidationData.zonesBelow?.length);
 
   return (
     <div className="bg-card border border-border rounded-xl p-4">
@@ -227,6 +282,12 @@ export function DerivativesPanel({
             <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-2">
               <AlertTriangle className="h-3 w-3" />
               Zonas de Liquidación
+              {hasMultipleZones && (
+                <span className="flex items-center gap-1 text-[10px] text-primary">
+                  <Layers className="h-3 w-3" />
+                  Multi-zona
+                </span>
+              )}
             </h4>
             
             {methodBadge && (
@@ -264,116 +325,157 @@ export function DerivativesPanel({
               <span>{heatAlert.text}</span>
             </div>
           )}
-          
-          <div className="grid grid-cols-3 gap-2">
-            {/* Long Pool (below price) */}
-            <div className="bg-danger/10 border border-danger/20 rounded-lg p-2.5">
-              <div className="flex items-center gap-1 mb-1">
-                <TrendingDown className="h-3 w-3 text-danger" />
-                <span className="text-[10px] text-danger font-medium">LONG POOL</span>
-              </div>
-              <p className="text-sm font-bold text-foreground">
-                ${liquidationData.longLiquidationPool.price.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-              </p>
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-[10px] text-muted-foreground">
-                  -{liquidationData.longLiquidationPool.distancePercent.toFixed(1)}%
-                </p>
-                <span className={cn(
-                  "text-[9px] font-medium",
-                  getDistanceBadge(liquidationData.longLiquidationPool.distancePercent).color
-                )}>
-                  {getDistanceBadge(liquidationData.longLiquidationPool.distancePercent).text}
-                </span>
-              </div>
-              <p className="text-[10px] text-danger/70">
-                {liquidationData.longLiquidationPool.estimatedLiquidity}
-              </p>
-              
-              {/* Coinglass metadata */}
-              {liquidationData.method === 'coinglass_real' && liquidationData.longLiquidationPool.significance && (
-                <div className="mt-2 pt-2 border-t border-danger/20 space-y-1">
-                  <span className={cn(
-                    "text-[9px] px-1.5 py-0.5 rounded inline-block",
-                    getSignificanceBadge(liquidationData.longLiquidationPool.significance).color
-                  )}>
-                    {getSignificanceBadge(liquidationData.longLiquidationPool.significance).text}
+
+          {/* Multiple Zones Display (Coinglass Real Data) */}
+          {hasMultipleZones ? (
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {/* LONG Pools (below price) */}
+              <div>
+                <div className="flex items-center gap-1 mb-2">
+                  <TrendingDown className="h-3 w-3 text-danger" />
+                  <span className="text-[10px] text-danger font-medium">LONG POOLS</span>
+                  <span className="text-[9px] text-muted-foreground">
+                    ({liquidationData.zonesBelow?.length || 0})
                   </span>
-                  {liquidationData.longLiquidationPool.lastOccurrence && (
-                    <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
-                      <History className="h-2.5 w-2.5" />
-                      {formatTimeAgo(liquidationData.longLiquidationPool.lastOccurrence)}
-                    </div>
+                </div>
+                <div className="space-y-1.5">
+                  {liquidationData.zonesBelow?.slice(0, 3).map(zone => 
+                    renderZoneItem(zone, 'long', liquidationData.longLiquidationPool.price / (1 - liquidationData.longLiquidationPool.distancePercent / 100))
+                  )}
+                  {(!liquidationData.zonesBelow || liquidationData.zonesBelow.length === 0) && (
+                    <p className="text-[10px] text-muted-foreground italic">
+                      Sin zonas cercanas
+                    </p>
                   )}
                 </div>
-              )}
-            </div>
-
-            {/* Short Pool (above price) */}
-            <div className="bg-success/10 border border-success/20 rounded-lg p-2.5">
-              <div className="flex items-center gap-1 mb-1">
-                <TrendingUp className="h-3 w-3 text-success" />
-                <span className="text-[10px] text-success font-medium">SHORT POOL</span>
               </div>
-              <p className="text-sm font-bold text-foreground">
-                ${liquidationData.shortLiquidationPool.price.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-              </p>
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-[10px] text-muted-foreground">
-                  +{liquidationData.shortLiquidationPool.distancePercent.toFixed(1)}%
-                </p>
-                <span className={cn(
-                  "text-[9px] font-medium",
-                  getDistanceBadge(liquidationData.shortLiquidationPool.distancePercent).color
-                )}>
-                  {getDistanceBadge(liquidationData.shortLiquidationPool.distancePercent).text}
-                </span>
-              </div>
-              <p className="text-[10px] text-success/70">
-                {liquidationData.shortLiquidationPool.estimatedLiquidity}
-              </p>
               
-              {/* Coinglass metadata */}
-              {liquidationData.method === 'coinglass_real' && liquidationData.shortLiquidationPool.significance && (
-                <div className="mt-2 pt-2 border-t border-success/20 space-y-1">
-                  <span className={cn(
-                    "text-[9px] px-1.5 py-0.5 rounded inline-block",
-                    getSignificanceBadge(liquidationData.shortLiquidationPool.significance).color
-                  )}>
-                    {getSignificanceBadge(liquidationData.shortLiquidationPool.significance).text}
+              {/* SHORT Pools (above price) */}
+              <div>
+                <div className="flex items-center gap-1 mb-2">
+                  <TrendingUp className="h-3 w-3 text-success" />
+                  <span className="text-[10px] text-success font-medium">SHORT POOLS</span>
+                  <span className="text-[9px] text-muted-foreground">
+                    ({liquidationData.zonesAbove?.length || 0})
                   </span>
-                  {liquidationData.shortLiquidationPool.lastOccurrence && (
-                    <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
-                      <History className="h-2.5 w-2.5" />
-                      {formatTimeAgo(liquidationData.shortLiquidationPool.lastOccurrence)}
-                    </div>
+                </div>
+                <div className="space-y-1.5">
+                  {liquidationData.zonesAbove?.slice(0, 3).map(zone => 
+                    renderZoneItem(zone, 'short', liquidationData.shortLiquidationPool.price / (1 + liquidationData.shortLiquidationPool.distancePercent / 100))
+                  )}
+                  {(!liquidationData.zonesAbove || liquidationData.zonesAbove.length === 0) && (
+                    <p className="text-[10px] text-muted-foreground italic">
+                      Sin zonas cercanas
+                    </p>
                   )}
                 </div>
-              )}
-            </div>
-
-            {/* Suggested SL */}
-            <div className="bg-info/10 border border-info/20 rounded-lg p-2.5">
-              <div className="flex items-center gap-1 mb-1">
-                <Shield className="h-3 w-3 text-info" />
-                <span className="text-[10px] text-info font-medium">SL SUGERIDO</span>
               </div>
-              <p className="text-sm font-bold text-foreground">
-                ${liquidationData.suggestedStopLoss.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-1">
-                -{liquidationData.suggestedStopLossPercent.toFixed(1)}%
-              </p>
-              <p className={cn(
-                "text-[10px]",
-                liquidationData.riskLevel === 'high' ? 'text-danger' :
-                liquidationData.riskLevel === 'medium' ? 'text-warning' : 'text-success'
-              )}>
-                Riesgo {liquidationData.riskLevel === 'high' ? 'Alto' : 
-                        liquidationData.riskLevel === 'medium' ? 'Medio' : 'Bajo'}
-              </p>
             </div>
-          </div>
+          ) : (
+            /* Single Zone Display (ATR Fallback) */
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {/* Long Pool (below price) */}
+              <div className="bg-danger/10 border border-danger/20 rounded-lg p-2.5">
+                <div className="flex items-center gap-1 mb-1">
+                  <TrendingDown className="h-3 w-3 text-danger" />
+                  <span className="text-[10px] text-danger font-medium">LONG POOL</span>
+                </div>
+                <p className="text-sm font-bold text-foreground">
+                  ${liquidationData.longLiquidationPool.price.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-[10px] text-muted-foreground">
+                    -{liquidationData.longLiquidationPool.distancePercent.toFixed(1)}%
+                  </p>
+                  <span className={cn(
+                    "text-[9px] font-medium",
+                    getDistanceBadge(liquidationData.longLiquidationPool.distancePercent).color
+                  )}>
+                    {getDistanceBadge(liquidationData.longLiquidationPool.distancePercent).text}
+                  </span>
+                </div>
+                <p className="text-[10px] text-danger/70">
+                  {liquidationData.longLiquidationPool.estimatedLiquidity}
+                </p>
+              </div>
+
+              {/* Short Pool (above price) */}
+              <div className="bg-success/10 border border-success/20 rounded-lg p-2.5">
+                <div className="flex items-center gap-1 mb-1">
+                  <TrendingUp className="h-3 w-3 text-success" />
+                  <span className="text-[10px] text-success font-medium">SHORT POOL</span>
+                </div>
+                <p className="text-sm font-bold text-foreground">
+                  ${liquidationData.shortLiquidationPool.price.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-[10px] text-muted-foreground">
+                    +{liquidationData.shortLiquidationPool.distancePercent.toFixed(1)}%
+                  </p>
+                  <span className={cn(
+                    "text-[9px] font-medium",
+                    getDistanceBadge(liquidationData.shortLiquidationPool.distancePercent).color
+                  )}>
+                    {getDistanceBadge(liquidationData.shortLiquidationPool.distancePercent).text}
+                  </span>
+                </div>
+                <p className="text-[10px] text-success/70">
+                  {liquidationData.shortLiquidationPool.estimatedLiquidity}
+                </p>
+              </div>
+
+              {/* Suggested SL */}
+              <div className="bg-info/10 border border-info/20 rounded-lg p-2.5">
+                <div className="flex items-center gap-1 mb-1">
+                  <Shield className="h-3 w-3 text-info" />
+                  <span className="text-[10px] text-info font-medium">SL SUGERIDO</span>
+                </div>
+                <p className="text-sm font-bold text-foreground">
+                  ${liquidationData.suggestedStopLoss.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  -{liquidationData.suggestedStopLossPercent.toFixed(1)}%
+                </p>
+                <p className={cn(
+                  "text-[10px]",
+                  liquidationData.riskLevel === 'high' ? 'text-danger' :
+                  liquidationData.riskLevel === 'medium' ? 'text-warning' : 'text-success'
+                )}>
+                  Riesgo {liquidationData.riskLevel === 'high' ? 'Alto' : 
+                          liquidationData.riskLevel === 'medium' ? 'Medio' : 'Bajo'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Suggested SL for multi-zone view */}
+          {hasMultipleZones && (
+            <div className="bg-info/10 border border-info/20 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-info" />
+                  <span className="text-xs text-info font-medium">STOP LOSS SUGERIDO</span>
+                </div>
+                <span className={cn(
+                  "text-[10px] px-2 py-0.5 rounded",
+                  liquidationData.riskLevel === 'high' ? 'bg-danger/20 text-danger' :
+                  liquidationData.riskLevel === 'medium' ? 'bg-warning/20 text-warning' : 
+                  'bg-success/20 text-success'
+                )}>
+                  Riesgo {liquidationData.riskLevel === 'high' ? 'Alto' : 
+                          liquidationData.riskLevel === 'medium' ? 'Medio' : 'Bajo'}
+                </span>
+              </div>
+              <div className="flex items-center gap-4 mt-2">
+                <p className="text-lg font-bold text-foreground">
+                  ${liquidationData.suggestedStopLoss.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  -{liquidationData.suggestedStopLossPercent.toFixed(1)}% del precio actual
+                </p>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
