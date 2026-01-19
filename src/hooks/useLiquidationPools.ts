@@ -6,6 +6,7 @@ import {
   IntelligentLiquidationData 
 } from '@/lib/liquidationCalculations';
 import { useRealLiquidations } from './useRealLiquidations';
+import { LiquidationCluster } from '@/lib/coinglass';
 
 // ============================================================================
 // TYPES (Extended for backward compatibility)
@@ -41,6 +42,9 @@ export interface LiquidationData {
     shortPercent: number;
     trend: 'bullish' | 'bearish' | 'neutral';
   };
+  // Multiple zones from Coinglass
+  zonesAbove?: LiquidationCluster[];  // SHORT pools (above price)
+  zonesBelow?: LiquidationCluster[];  // LONG pools (below price)
 }
 
 // ============================================================================
@@ -149,7 +153,10 @@ export function useLiquidationPools(
           longPercent: longShortRatio.longPercent,
           shortPercent: longShortRatio.shortPercent,
           trend: longShortRatio.trend
-        } : undefined
+        } : undefined,
+        // Expose full zone arrays for UI
+        zonesAbove: zonesAbove.slice(0, 5),
+        zonesBelow: zonesBelow.slice(0, 5)
       };
 
       console.log(`[useLiquidationPools] Coinglass result:`, {
@@ -157,7 +164,9 @@ export function useLiquidationPools(
         heatLevel: result.heatLevel,
         longPool: `$${result.longLiquidationPool.price.toFixed(0)}`,
         shortPool: `$${result.shortLiquidationPool.price.toFixed(0)}`,
-        clusters: coinglassData.clusters.length
+        clusters: coinglassData.clusters.length,
+        zonesAbove: zonesAbove.length,
+        zonesBelow: zonesBelow.length
       });
 
       return result;

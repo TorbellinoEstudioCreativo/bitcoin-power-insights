@@ -1,5 +1,5 @@
 // ============================================================================
-// COINGLASS API CLIENT - Real Liquidation Data
+// COINGLASS API CLIENT - Real Liquidation Data (API v3)
 // ============================================================================
 
 import { supabase } from '@/integrations/supabase/client';
@@ -69,7 +69,7 @@ async function callCoinglassProxy(endpoint: string, params: Record<string, strin
   }
   
   if (data?.error) {
-    console.error('[Coinglass] API error:', data.error);
+    console.error('[Coinglass] API error:', data.error, data.message);
     throw new Error(`Coinglass API error: ${data.message || data.error}`);
   }
   
@@ -77,7 +77,8 @@ async function callCoinglassProxy(endpoint: string, params: Record<string, strin
 }
 
 /**
- * Fetch historical liquidations from Coinglass
+ * Fetch historical liquidations from Coinglass API v3
+ * Endpoint: /api/futures/liquidation/v2/history
  */
 export async function fetchLiquidationHistory(
   symbol: string,
@@ -86,53 +87,59 @@ export async function fetchLiquidationHistory(
   console.log('[Coinglass] Fetching liquidation history for', symbol, timeType);
   
   try {
-    const result = await callCoinglassProxy('/api/futures/liquidation/history', {
+    // v3 API uses different endpoint and parameters
+    const result = await callCoinglassProxy('/api/futures/liquidation/v2/history', {
       symbol: symbol.toUpperCase(),
-      timeType
+      range: timeType
     });
     
-    // Transform API response to our format
-    // Coinglass returns data in various formats, handle accordingly
+    // v3 returns { code, msg, data } where data is an array
     const rawData = result.data || [];
     
     const liquidations: HistoricalLiquidation[] = [];
     
     if (Array.isArray(rawData)) {
       rawData.forEach((item: Record<string, unknown>) => {
-        // Handle aggregated data format
-        if (item.longLiquidationUsd || item.shortLiquidationUsd) {
-          const price = Number(item.price) || 0;
-          const longVol = Number(item.longLiquidationUsd) || 0;
-          const shortVol = Number(item.shortLiquidationUsd) || 0;
-          const timestamp = Number(item.createTime) || Number(item.time) || Date.now();
-          
-          if (longVol > 0) {
-            liquidations.push({
-              price,
-              timestamp,
-              volume: longVol / 1_000_000,
-              side: 'long',
-              leverage: classifyLeverage(20)
-            });
-          }
-          if (shortVol > 0) {
-            liquidations.push({
-              price,
-              timestamp,
-              volume: shortVol / 1_000_000,
-              side: 'short',
-              leverage: classifyLeverage(20)
-            });
-          }
-        } else {
-          // Handle individual liquidation format
+        const price = Number(item.price) || Number(item.markPrice) || 0;
+        const timestamp = Number(item.time) || Number(item.createTime) || Date.now();
+        
+        // v3 format: each entry has longLiquidationUsd and shortLiquidationUsd
+        const longVol = Number(item.longLiquidationUsd) || Number(item.buyVol) || 0;
+        const shortVol = Number(item.shortLiquidationUsd) || Number(item.sellVol) || 0;
+        
+        if (longVol > 0 && price > 0) {
           liquidations.push({
-            price: Number(item.price) || 0,
-            timestamp: Number(item.time) || Number(item.createTime) || Date.now(),
-            volume: (Number(item.volume) || Number(item.usd) || 0) / 1_000_000,
-            side: (item.side === 'sell' || item.type === 1) ? 'long' : 'short',
-            leverage: classifyLeverage(Number(item.leverage) || 20)
+            price,
+            timestamp,
+            volume: longVol / 1_000_000,
+            side: 'long',
+            leverage: classifyLeverage(20)
           });
+        }
+        if (shortVol > 0 && price > 0) {
+          liquidations.push({
+            price,
+            timestamp,
+            volume: shortVol / 1_000_000,
+            side: 'short',
+            leverage: classifyLeverage(20)
+          });
+        }
+        
+        // Alternative format: single entry with side indicator
+        if (!longVol && !shortVol) {
+          const vol = Number(item.vol) || Number(item.volUsd) || Number(item.liquidationUsd) || 0;
+          const side = item.side === 'buy' || item.side === 1 || item.posSide === 'long' ? 'long' : 'short';
+          
+          if (vol > 0 && price > 0) {
+            liquidations.push({
+              price,
+              timestamp,
+              volume: vol / 1_000_000,
+              side,
+              leverage: classifyLeverage(Number(item.leverage) || 20)
+            });
+          }
         }
       });
     }
@@ -147,34 +154,44 @@ export async function fetchLiquidationHistory(
 }
 
 /**
- * Fetch long/short ratio from Coinglass
+ * Fetch long/short ratio from Coinglass API v3
+ * Endpoint: /api/futures/globalLongShortAccountRatio/history
  */
 export async function fetchLongShortRatio(symbol: string): Promise<LongShortRatio> {
   console.log('[Coinglass] Fetching long/short ratio for', symbol);
   
   try {
-    const result = await callCoinglassProxy('/api/futures/longShort/globalAccount', {
-      symbol: symbol.toUpperCase()
+    // v3 uses different endpoint path
+    const result = await callCoinglassProxy('/api/futures/globalLongShortAccountRatio/history', {
+      symbol: symbol.toUpperCase(),
+      interval: 'h4',
+      limit: 24
     });
     
     const rawData = result.data || [];
     
-    // Calculate aggregate average
+    // Calculate aggregate average from recent data
     let totalLong = 0;
     let count = 0;
     const exchanges: LongShortRatio['exchanges'] = [];
     
     if (Array.isArray(rawData)) {
-      rawData.forEach((item: Record<string, unknown>) => {
-        const longPercent = Number(item.longRate) || Number(item.longPercent) || 50;
-        totalLong += longPercent;
+      // Take the most recent entries
+      const recentData = rawData.slice(-5);
+      
+      recentData.forEach((item: Record<string, unknown>) => {
+        // v3 format: longAccount, shortAccount, or longRatio
+        const longPercent = Number(item.longAccount) || Number(item.longRate) || Number(item.longRatio) * 100 || 50;
+        totalLong += Math.min(100, Math.max(0, longPercent));
         count++;
         
-        exchanges.push({
-          name: String(item.exchangeName || item.exchange || 'Unknown'),
-          longPercent,
-          shortPercent: 100 - longPercent
-        });
+        if (item.exchangeName || item.exchange) {
+          exchanges.push({
+            name: String(item.exchangeName || item.exchange),
+            longPercent,
+            shortPercent: 100 - longPercent
+          });
+        }
       });
     }
     
