@@ -279,3 +279,51 @@ export function generateTradeSetup(
     estimatedDuration: DURATIONS[signal.timeframe]
   };
 }
+
+// ============================================================================
+// POSITION MANAGER TYPES
+// ============================================================================
+
+export interface OpenPosition {
+  asset: IntradayAsset;
+  direction: 'LONG' | 'SHORT';
+  entryPrice: number;
+  currentSize: number;        // En BTC/ETH/BNB
+  leverage: number;
+  positionValueUSDT: number;  // Tamaño total en USDT
+  currentPrice: number;       // Inyectado desde intradayData
+  pnlUSDT: number;
+  pnlPercent: number;
+  liquidationPrice?: number;
+}
+
+export interface TacticalAction {
+  type: 'PARTIAL_CLOSE' | 'DCA_BUY' | 'SCALP_SELL' | 'FULL_EXIT';
+  triggerPrice: number;
+  amount: number;
+  amountPercent: number;
+  reason: string;
+  expectedEffect: {
+    newAvgEntry?: number;
+    newPnL?: number;
+    riskReduction?: string;
+  };
+  urgency: 'low' | 'medium' | 'high' | 'critical';
+}
+
+export interface PositionAnalysis {
+  position: OpenPosition;
+  currentSignal: {
+    direction: 'LONG' | 'SHORT' | 'NEUTRAL';
+    strength: number;
+    agrees: boolean;
+  };
+  riskAssessment: {
+    distanceToLiquidation: number;
+    riskLevel: 'safe' | 'moderate' | 'high' | 'critical';
+    nearbyLiquidationZone: number;
+  };
+  tacticalActions: TacticalAction[];
+  recommendation: 'HOLD' | 'REDUCE' | 'DCA' | 'EXIT' | 'FLIP';
+  reasoning: string[];
+}

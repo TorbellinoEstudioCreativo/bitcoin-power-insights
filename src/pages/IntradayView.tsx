@@ -170,6 +170,11 @@ export function IntradayView() {
               topSignals={topSignals} 
               getTradeSetup={getTradeSetup}
               isLoading={isLoadingAllSignals}
+              currentPrice={intradayData?.currentPrice ?? 0}
+              currentSignal={signal}
+              liquidationData={liquidationData}
+              volatility={intradayData?.volatility ?? 1}
+              selectedAsset={selectedAsset}
             />
           </div>
         </div>
