@@ -63,6 +63,7 @@ const Index = () => {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header
+        activeTab={activeTab}
         alerts={alerts}
         activeAlertsCount={activeAlertsCount}
         canAddMore={canAddMore}

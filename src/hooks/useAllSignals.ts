@@ -214,42 +214,47 @@ export function useAllSignals(): AllSignalsResult {
   // Calculate OI change from derivatives
   const oiChange = derivativesData?.openInterest?.change24h ?? 0;
   
-  // Calculate top signals
+  // Calculate top signals with error handling
   const topSignals = useMemo(() => {
-    const signals: Array<{
-      asset: IntradayAsset;
-      timeframe: IntradayTimeframe;
-      direction: 'LONG' | 'SHORT' | 'NEUTRAL';
-      confidence: number;
-      confluenceScore: number;
-      volatility: number;
-      oiChange: number;
-    }> = [];
-    
-    MONITORED_COMBINATIONS.forEach(({ asset, timeframe }) => {
-      const key = `${asset}-${timeframe}`;
-      const entry = dataMap.get(key);
+    try {
+      const signals: Array<{
+        asset: IntradayAsset;
+        timeframe: IntradayTimeframe;
+        direction: 'LONG' | 'SHORT' | 'NEUTRAL';
+        confidence: number;
+        confluenceScore: number;
+        volatility: number;
+        oiChange: number;
+      }> = [];
       
-      if (entry?.data) {
-        const { direction, confidence, confluenceScore } = calculateSignalWithConfluence(
-          entry.data,
-          timeframe,
-          validationDataMaps[asset]
-        );
+      MONITORED_COMBINATIONS.forEach(({ asset, timeframe }) => {
+        const key = `${asset}-${timeframe}`;
+        const entry = dataMap.get(key);
         
-        signals.push({
-          asset,
-          timeframe,
-          direction,
-          confidence,
-          confluenceScore,
-          volatility: entry.data.volatility ?? 50,
-          oiChange
-        });
-      }
-    });
-    
-    return rankSignals(signals);
+        if (entry?.data) {
+          const { direction, confidence, confluenceScore } = calculateSignalWithConfluence(
+            entry.data,
+            timeframe,
+            validationDataMaps[asset]
+          );
+          
+          signals.push({
+            asset,
+            timeframe,
+            direction,
+            confidence,
+            confluenceScore,
+            volatility: entry.data.volatility ?? 50,
+            oiChange
+          });
+        }
+      });
+      
+      return rankSignals(signals);
+    } catch (error) {
+      console.error('[useAllSignals] Error ranking signals:', error);
+      return [];
+    }
   }, [dataMap, validationDataMaps, oiChange]);
   
   // Check if any data is still loading
