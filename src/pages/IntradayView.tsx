@@ -3,6 +3,7 @@ import { useIntradayData, IntradayAsset, IntradayTimeframe, AllTimeframes } from
 import { useLiquidationPools } from '@/hooks/useLiquidationPools';
 import { useIntradaySignal, AdjacentTFData } from '@/hooks/useIntradaySignal';
 import { useDerivatives } from '@/hooks/useDerivatives';
+import { useAllSignals } from '@/hooks/useAllSignals';
 import { getValidationTimeframes } from '@/lib/multiTimeframeAnalysis';
 import { AssetSelector } from '@/components/intraday/AssetSelector';
 import { PriceCard } from '@/components/intraday/PriceCard';
@@ -11,6 +12,7 @@ import { DerivativesPanel } from '@/components/intraday/DerivativesPanel';
 import { IntradaySignal } from '@/components/intraday/IntradaySignal';
 import { TradingLevels } from '@/components/intraday/TradingLevels';
 import { IntradayRecommendation } from '@/components/intraday/IntradayRecommendation';
+import { TradeRecommender } from '@/components/intraday/TradeRecommender';
 
 export function IntradayView() {
   const [selectedAsset, setSelectedAsset] = useState<IntradayAsset>('BTC');
@@ -77,6 +79,9 @@ export function IntradayView() {
     timeframe,
     adjacentData
   );
+  
+  // All signals for Trade Recommender
+  const { topSignals, isLoading: isLoadingAllSignals, getTradeSetup } = useAllSignals();
 
   const isLoading = isLoadingIntraday || isLoadingDerivatives;
 
@@ -157,6 +162,15 @@ export function IntradayView() {
           {/* Trading Levels (desktop) */}
           <div className="hidden lg:block">
             <TradingLevels signal={signal} asset={selectedAsset} intradayData={intradayData} isLoading={isLoading} />
+          </div>
+          
+          {/* Trade Recommender (desktop) */}
+          <div className="hidden lg:block">
+            <TradeRecommender 
+              topSignals={topSignals} 
+              getTradeSetup={getTradeSetup}
+              isLoading={isLoadingAllSignals}
+            />
           </div>
         </div>
       </div>
