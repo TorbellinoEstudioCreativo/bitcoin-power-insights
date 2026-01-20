@@ -14,18 +14,34 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SignalScore, TradeSetup } from '@/lib/tradeRecommender';
+import type { IntradaySignal } from '@/hooks/useIntradaySignal';
+import type { LiquidationData } from '@/hooks/useLiquidationPools';
+import type { IntradayAsset } from '@/hooks/useIntradayData';
+import { PositionManager } from './PositionManager';
 
 interface TradeRecommenderProps {
   topSignals: SignalScore[];
   getTradeSetup: (signal: SignalScore) => TradeSetup | null;
   isLoading?: boolean;
+  // Props for Position Manager
+  currentPrice: number;
+  currentSignal: IntradaySignal | null;
+  liquidationData: LiquidationData | null;
+  volatility: number;
+  selectedAsset: IntradayAsset;
 }
 
 export function TradeRecommender({ 
   topSignals, 
   getTradeSetup,
-  isLoading = false 
+  isLoading = false,
+  currentPrice,
+  currentSignal,
+  liquidationData,
+  volatility,
+  selectedAsset
 }: TradeRecommenderProps) {
+  const [activeTab, setActiveTab] = useState<'signals' | 'position'>('signals');
   const [selectedSignal, setSelectedSignal] = useState<SignalScore | null>(null);
   const [capital, setCapital] = useState(1000);
   
@@ -86,12 +102,54 @@ export function TradeRecommender({
   
   return (
     <div className="space-y-4">
-      {/* Top 3 Signals Card */}
-      <Card className="p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Trophy className="w-5 h-5 text-primary" />
-          <h3 className="font-semibold text-foreground">Mejores Señales</h3>
-        </div>
+      {/* Tab Selector */}
+      <div className="flex gap-1 p-1 bg-muted rounded-lg">
+        <button 
+          onClick={() => setActiveTab('signals')}
+          className={cn(
+            "flex-1 py-2 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-1",
+            activeTab === 'signals' 
+              ? "bg-background shadow text-foreground" 
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <TrendingUp className="w-4 h-4" />
+          Señales
+        </button>
+        <button 
+          onClick={() => setActiveTab('position')}
+          className={cn(
+            "flex-1 py-2 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-1",
+            activeTab === 'position' 
+              ? "bg-background shadow text-foreground" 
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Target className="w-4 h-4" />
+          Mi Posición
+        </button>
+      </div>
+      
+      {/* Position Manager Tab */}
+      {activeTab === 'position' && (
+        <PositionManager 
+          currentPrice={currentPrice}
+          currentSignal={currentSignal}
+          liquidationData={liquidationData}
+          volatility={volatility}
+          selectedAsset={selectedAsset}
+        />
+      )}
+      
+      {/* Signals Tab */}
+      {activeTab === 'signals' && (
+        <>
+          {/* Top 3 Signals Card */}
+          <Card className="p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Trophy className="w-5 h-5 text-primary" />
+              <h3 className="font-semibold text-foreground">Mejores Señales</h3>
+            </div>
         
         <div className="space-y-2">
           {topSignals.map((signal) => (
@@ -302,6 +360,8 @@ export function TradeRecommender({
             </div>
           </div>
         </Card>
+      )}
+        </>
       )}
     </div>
   );
