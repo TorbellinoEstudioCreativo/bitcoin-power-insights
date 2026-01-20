@@ -40,14 +40,45 @@ export function TradeRecommender({
     return '🥉';
   };
   
-  if (isLoading || topSignals.length === 0) {
+  // Handle capital input with validation
+  const handleCapitalChange = (value: string) => {
+    const num = parseFloat(value);
+    if (isNaN(num) || num < 0) {
+      setCapital(0);
+    } else if (num > 10000000) {
+      setCapital(10000000); // Cap at 10M
+    } else {
+      setCapital(num);
+    }
+  };
+  
+  // Loading state with skeleton
+  if (isLoading) {
+    return (
+      <Card className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Trophy className="h-5 w-5 text-primary animate-pulse" />
+          <h3 className="text-lg font-semibold text-foreground">Mejores Señales</h3>
+        </div>
+        <div className="space-y-2">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-16 bg-secondary/30 rounded-lg animate-pulse" />
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground mt-3 text-center">
+          Analizando señales de todos los timeframes...
+        </p>
+      </Card>
+    );
+  }
+  
+  // Empty state
+  if (topSignals.length === 0) {
     return (
       <Card className="p-4">
         <div className="flex items-center gap-2 text-muted-foreground">
-          <Trophy className="w-5 h-5 animate-pulse text-primary" />
-          <span className="text-sm">
-            {isLoading ? 'Calculando mejores señales...' : 'Sin señales disponibles'}
-          </span>
+          <Trophy className="w-5 h-5 text-primary/50" />
+          <span className="text-sm">Sin señales disponibles</span>
         </div>
       </Card>
     );
@@ -108,6 +139,19 @@ export function TradeRecommender({
         </div>
       </Card>
       
+      {/* Error state when signal selected but setup failed */}
+      {selectedSignal && !selectedSetup && (
+        <Card className="p-4 border-amber-500/30 bg-amber-500/5">
+          <div className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
+            <AlertTriangle className="h-4 w-4" />
+            <span className="text-sm font-medium">No se pudo generar el setup</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Intenta seleccionar otra señal con mejor confluencia.
+          </p>
+        </Card>
+      )}
+      
       {/* Trade Simulator Card */}
       {selectedSetup && (
         <Card className="p-4">
@@ -123,7 +167,9 @@ export function TradeRecommender({
             <Input
               type="number"
               value={capital}
-              onChange={(e) => setCapital(parseFloat(e.target.value) || 0)}
+              onChange={(e) => handleCapitalChange(e.target.value)}
+              min={0}
+              max={10000000}
               className="text-lg font-semibold"
             />
           </div>
@@ -221,14 +267,14 @@ export function TradeRecommender({
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Posición:</span>
                 <span className="font-bold text-foreground">
-                  ${(capital * selectedSetup.leverage.suggested).toLocaleString()}
+                  ${capital > 0 ? (capital * selectedSetup.leverage.suggested).toLocaleString() : '0'}
                 </span>
               </div>
               
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Riesgo:</span>
                 <span className="text-destructive">
-                  -${(capital * selectedSetup.stopLoss.distancePercent / 100 * selectedSetup.leverage.suggested).toFixed(2)}
+                  -${capital > 0 ? (capital * selectedSetup.stopLoss.distancePercent / 100 * selectedSetup.leverage.suggested).toFixed(2) : '0.00'}
                   <span className="text-xs ml-1">
                     (-{(selectedSetup.stopLoss.distancePercent * selectedSetup.leverage.suggested).toFixed(1)}%)
                   </span>
@@ -238,7 +284,7 @@ export function TradeRecommender({
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Ganancia TP3:</span>
                 <span className="text-primary font-semibold">
-                  +${(capital * selectedSetup.takeProfits[selectedSetup.takeProfits.length - 1].distancePercent / 100 * selectedSetup.leverage.suggested).toFixed(2)}
+                  +${capital > 0 ? (capital * selectedSetup.takeProfits[selectedSetup.takeProfits.length - 1].distancePercent / 100 * selectedSetup.leverage.suggested).toFixed(2) : '0.00'}
                 </span>
               </div>
               

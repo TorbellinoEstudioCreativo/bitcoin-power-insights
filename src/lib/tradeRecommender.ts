@@ -54,20 +54,26 @@ export function calculateTotalScore(
   volatility: number,
   oiChange: number
 ): number {
+  // Validate and sanitize inputs
+  const safeConfidence = Math.max(0, Math.min(100, confidence || 0));
+  const safeConfluence = Math.max(0, Math.min(100, confluenceScore || 0));
+  const safeVolatility = Math.max(0, Math.min(100, volatility ?? 50));
+  const safeOiChange = oiChange ?? 0;
+
   const confidenceWeight = 0.5;
   const confluenceWeight = 0.3;
   const volatilityWeight = 0.1;
   const oiWeight = 0.1;
   
   // Moderate volatility is optimal (50 = perfect)
-  const volatilityScore = 100 - Math.abs(volatility - 50);
+  const volatilityScore = 100 - Math.abs(safeVolatility - 50);
   
   // Growing OI is positive
-  const oiScore = Math.max(0, Math.min(100, 50 + oiChange * 5));
+  const oiScore = Math.max(0, Math.min(100, 50 + safeOiChange * 5));
   
   const totalScore = 
-    (confidence * confidenceWeight) +
-    (confluenceScore * confluenceWeight) +
+    (safeConfidence * confidenceWeight) +
+    (safeConfluence * confluenceWeight) +
     (volatilityScore * volatilityWeight) +
     (oiScore * oiWeight);
   
@@ -191,6 +197,7 @@ export function calculateLeverage(
 
 /**
  * Generate complete trade setup
+ * Returns null if inputs are invalid
  */
 export function generateTradeSetup(
   signal: SignalScore,
@@ -199,18 +206,47 @@ export function generateTradeSetup(
   tpPrices: number[],
   volatility: number,
   oiChange: number
-): TradeSetup {
+): TradeSetup | null {
+  // Validate critical inputs
+  if (!currentPrice || currentPrice <= 0) {
+    console.warn('[TradeSetup] Invalid current price:', currentPrice);
+    return null;
+  }
+  
+  if (!slPrice || slPrice <= 0) {
+    console.warn('[TradeSetup] Invalid SL price:', slPrice);
+    return null;
+  }
+  
+  if (!tpPrices || tpPrices.length === 0) {
+    console.warn('[TradeSetup] No TP prices provided');
+    return null;
+  }
+  
+  // Filter out invalid TP prices
+  const validTPs = tpPrices.filter(p => p > 0);
+  if (validTPs.length === 0) {
+    console.warn('[TradeSetup] All TP prices invalid');
+    return null;
+  }
+
   const leverage = calculateLeverage(
     signal.timeframe,
     signal.confidence,
     signal.confluenceScore,
-    volatility,
-    oiChange
+    volatility ?? 50,
+    oiChange ?? 0
   );
   
   const slDistance = Math.abs((currentPrice - slPrice) / currentPrice) * 100;
   
-  const takeProfits = tpPrices.map((price, i) => ({
+  // Protect against division by zero
+  if (slDistance === 0) {
+    console.warn('[TradeSetup] SL distance is zero');
+    return null;
+  }
+  
+  const takeProfits = validTPs.map((price, i) => ({
     level: i + 1,
     price,
     distancePercent: Math.abs((price - currentPrice) / currentPrice) * 100,
@@ -219,7 +255,7 @@ export function generateTradeSetup(
   
   // Calculate average TP distance for R:R
   const avgTpDistance = takeProfits.reduce((sum, tp) => sum + tp.distancePercent, 0) / takeProfits.length;
-  const riskReward = slDistance > 0 ? avgTpDistance / slDistance : 0;
+  const riskReward = avgTpDistance / slDistance;
   
   const DURATIONS: Record<IntradayTimeframe, string> = {
     '1m': '5-15 minutos',

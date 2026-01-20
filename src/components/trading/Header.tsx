@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 interface HeaderProps {
+  activeTab?: 'powerlaw' | 'intraday';
   alerts?: Alert[];
   activeAlertsCount?: number;
   canAddMore?: boolean;
@@ -35,6 +36,7 @@ interface HeaderProps {
 }
 
 export function Header({
+  activeTab = 'powerlaw',
   alerts = [],
   activeAlertsCount = 0,
   canAddMore = true,
@@ -48,6 +50,10 @@ export function Header({
   const [showInfoModal, setShowInfoModal] = useState(false);
   const { language, setLanguage, t } = useLanguage();
   const { theme, setTheme } = useTheme();
+  
+  // Dynamic title based on active tab
+  const titleKey = activeTab === 'intraday' ? 'titleIntraday' : 'title';
+  const subtitleKey = activeTab === 'intraday' ? 'subtitleIntraday' : 'subtitle';
 
   return (
     <>
@@ -58,11 +64,11 @@ export function Header({
           </div>
           <div>
             <h1 className="text-lg font-bold text-foreground">
-              {t('header', 'title')}
+              {t('header', titleKey)}
             </h1>
             <div className="flex items-center gap-1.5">
               <p className="text-xs text-muted-foreground">
-                {t('header', 'subtitle')}
+                {t('header', subtitleKey)}
               </p>
               <button
                 onClick={() => setShowInfoModal(true)}

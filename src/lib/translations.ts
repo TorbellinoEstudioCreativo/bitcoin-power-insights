@@ -5,7 +5,9 @@ export const translations = {
     // Header
     header: {
       title: 'Bitcoin Power Law Analyzer',
+      titleIntraday: 'Bitcoin Power Insights',
       subtitle: 'Modelo de Giovanni Santostasi',
+      subtitleIntraday: 'Trading Intradía Inteligente',
       infoAriaLabel: 'Información sobre el modelo',
     },
     
@@ -221,7 +223,9 @@ export const translations = {
     // Header
     header: {
       title: 'Bitcoin Power Law Analyzer',
+      titleIntraday: 'Bitcoin Power Insights',
       subtitle: "Giovanni Santostasi's Model",
+      subtitleIntraday: 'Smart Intraday Trading',
       infoAriaLabel: 'Model information',
     },
     
