@@ -74,37 +74,38 @@ const Index = () => {
         onDeleteAlert={deleteAlert}
         onResetAlert={resetAlert}
       />
-      <PortfolioInput 
-        value={portfolioValue} 
-        onChange={setPortfolioValue}
-        interestRate={interestRate}
-        onInterestRateChange={setInterestRate}
-        estimatedCost6m={analysis.costoIntereses6m}
-      />
-      
       <TradingTabs activeTab={activeTab} onTabChange={setActiveTab} />
       
       <div className="flex flex-1 overflow-hidden">
         {activeTab === 'powerlaw' ? (
-          <>
-            {/* Left Sidebar - hidden on mobile/tablet */}
-            <div className="hidden lg:block">
-              <LeftSidebar />
+          <div className="flex flex-col flex-1">
+            <PortfolioInput 
+              value={portfolioValue} 
+              onChange={setPortfolioValue}
+              interestRate={interestRate}
+              onInterestRateChange={setInterestRate}
+              estimatedCost6m={analysis.costoIntereses6m}
+            />
+            <div className="flex flex-1 overflow-hidden">
+              {/* Left Sidebar - hidden on mobile/tablet */}
+              <div className="hidden lg:block">
+                <LeftSidebar />
+              </div>
+              
+              {/* Main Content */}
+              <MainContent analysis={analysis} btcPrice={btcPrice} interestRate={interestRate} />
+              
+              {/* Right Sidebar - hidden on mobile/tablet, shown on xl+ */}
+              <div className="hidden xl:block">
+                <RightSidebar 
+                  analysis={analysis} 
+                  priceData={priceData}
+                  isPriceError={isPriceError}
+                  dataUpdatedAt={dataUpdatedAt}
+                />
+              </div>
             </div>
-            
-            {/* Main Content */}
-            <MainContent analysis={analysis} btcPrice={btcPrice} interestRate={interestRate} />
-            
-            {/* Right Sidebar - hidden on mobile/tablet, shown on xl+ */}
-            <div className="hidden xl:block">
-              <RightSidebar 
-                analysis={analysis} 
-                priceData={priceData}
-                isPriceError={isPriceError}
-                dataUpdatedAt={dataUpdatedAt}
-              />
-            </div>
-          </>
+          </div>
         ) : (
           <div className="flex-1 overflow-auto">
             <IntradayView />
