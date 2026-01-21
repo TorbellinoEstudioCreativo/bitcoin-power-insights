@@ -7,6 +7,31 @@ import type { IntradaySignal, SignalDirection } from '@/hooks/useIntradaySignal'
 import type { LiquidationData } from '@/hooks/useLiquidationPools';
 
 // ============================================================================
+// LIQUIDATION CALCULATION
+// ============================================================================
+
+/**
+ * Calculate personal liquidation price for a specific position
+ * Uses maintenance margin rate (varies by asset)
+ */
+export function calculatePersonalLiquidation(
+  entryPrice: number,
+  leverage: number,
+  direction: 'LONG' | 'SHORT'
+): number {
+  // Maintenance margin rates by asset (approximate Binance values)
+  const maintenanceMarginRate = 0.004; // 0.4% for BTC
+  
+  if (direction === 'LONG') {
+    // LONG: Liq = Entry * (1 - (1/leverage) + MMR)
+    return entryPrice * (1 - (1 / leverage) + maintenanceMarginRate);
+  } else {
+    // SHORT: Liq = Entry * (1 + (1/leverage) - MMR)
+    return entryPrice * (1 + (1 / leverage) - maintenanceMarginRate);
+  }
+}
+
+// ============================================================================
 // MAIN ANALYSIS FUNCTION
 // ============================================================================
 
@@ -21,8 +46,8 @@ export function analyzeOpenPosition(
 ): PositionAnalysis | null {
   console.log('[PositionManager] Analyzing position:', position);
   
-  if (!currentSignal || !liquidationData) {
-    console.warn('[PositionManager] Missing signal or liquidation data');
+  if (!currentSignal) {
+    console.warn('[PositionManager] Missing signal data');
     return null;
   }
 
@@ -31,23 +56,26 @@ export function analyzeOpenPosition(
     (position.direction === 'LONG' && currentSignal.direction === 'LONG') ||
     (position.direction === 'SHORT' && currentSignal.direction === 'SHORT');
   
-  // 2. Calculate distance to liquidation
-  const nearbyLiqZone = position.direction === 'LONG'
-    ? liquidationData.longLiquidationPool.price
-    : liquidationData.shortLiquidationPool.price;
+  // 2. Calculate PERSONAL liquidation price (not aggregate pools)
+  const personalLiquidation = calculatePersonalLiquidation(
+    position.entryPrice,
+    position.leverage,
+    position.direction
+  );
   
+  // 3. Calculate distance to liquidation based on PERSONAL liquidation
   const distanceToLiq = position.direction === 'LONG'
-    ? ((position.currentPrice - nearbyLiqZone) / position.currentPrice) * 100
-    : ((nearbyLiqZone - position.currentPrice) / position.currentPrice) * 100;
+    ? ((position.currentPrice - personalLiquidation) / position.currentPrice) * 100
+    : ((personalLiquidation - position.currentPrice) / position.currentPrice) * 100;
   
-  // 3. Determine risk level
+  // 4. Determine risk level based on REAL distance to liquidation
   let riskLevel: 'safe' | 'moderate' | 'high' | 'critical';
-  if (distanceToLiq > 5) riskLevel = 'safe';
-  else if (distanceToLiq > 3) riskLevel = 'moderate';
-  else if (distanceToLiq > 1.5) riskLevel = 'high';
-  else riskLevel = 'critical';
+  if (distanceToLiq > 30) riskLevel = 'safe';        // >30% margin
+  else if (distanceToLiq > 15) riskLevel = 'moderate'; // 15-30% margin
+  else if (distanceToLiq > 5) riskLevel = 'high';      // 5-15% margin
+  else riskLevel = 'critical';                         // <5% margin
   
-  // 4. Generate tactical actions
+  // 5. Generate tactical actions
   const actions = generateTacticalActions(
     position,
     currentSignal,
@@ -57,7 +85,7 @@ export function analyzeOpenPosition(
     signalAgrees
   );
   
-  // 5. Determine overall recommendation
+  // 6. Determine overall recommendation
   const recommendation = determineRecommendation(
     position,
     signalAgrees,
@@ -65,13 +93,14 @@ export function analyzeOpenPosition(
     currentSignal.confidence
   );
   
-  // 6. Generate reasoning
+  // 7. Generate reasoning
   const reasoning = generateReasoning(
     position,
     signalAgrees,
     riskLevel,
     currentSignal,
-    distanceToLiq
+    distanceToLiq,
+    personalLiquidation
   );
   
   return {
@@ -84,7 +113,7 @@ export function analyzeOpenPosition(
     riskAssessment: {
       distanceToLiquidation: distanceToLiq,
       riskLevel,
-      nearbyLiquidationZone: nearbyLiqZone
+      nearbyLiquidationZone: personalLiquidation // Now shows personal liquidation
     },
     tacticalActions: actions,
     recommendation,
@@ -312,7 +341,8 @@ function generateReasoning(
   signalAgrees: boolean,
   riskLevel: string,
   signal: IntradaySignal,
-  distanceToLiq: number
+  distanceToLiq: number,
+  personalLiquidation: number
 ): string[] {
   const reasoning: string[] = [];
   
@@ -330,13 +360,16 @@ function generateReasoning(
     reasoning.push(`⚠️ Señal actual ${signal.direction} contradice tu posición ${position.direction}`);
   }
   
-  // Risk level
+  // Show personal liquidation price
+  reasoning.push(`💀 Liquidación en $${personalLiquidation.toLocaleString(undefined, { maximumFractionDigits: 0 })}`);
+  
+  // Risk level based on real distance
   if (riskLevel === 'critical') {
-    reasoning.push(`🔴 RIESGO CRÍTICO: Solo ${distanceToLiq.toFixed(1)}% hasta liquidación`);
+    reasoning.push(`🔴 RIESGO CRÍTICO: Solo ${distanceToLiq.toFixed(1)}% de margen`);
   } else if (riskLevel === 'high') {
-    reasoning.push(`🟠 Riesgo alto: ${distanceToLiq.toFixed(1)}% hasta liquidación`);
+    reasoning.push(`🟠 Riesgo alto: ${distanceToLiq.toFixed(1)}% de margen`);
   } else if (riskLevel === 'moderate') {
-    reasoning.push(`🟡 Riesgo moderado: ${distanceToLiq.toFixed(1)}% hasta liquidación`);
+    reasoning.push(`🟡 Riesgo moderado: ${distanceToLiq.toFixed(1)}% de margen`);
   } else {
     reasoning.push(`🟢 Riesgo bajo: ${distanceToLiq.toFixed(1)}% de margen`);
   }
@@ -350,6 +383,9 @@ function generateReasoning(
 
 /**
  * Calculate PnL for a position given current price
+ * 
+ * IMPORTANT: pnlPercent is the PRICE change percentage (without leverage)
+ * pnlUSDT considers leverage because it affects position value
  */
 export function calculatePnL(
   entryPrice: number,
@@ -362,13 +398,17 @@ export function calculatePnL(
     return { pnlUSDT: 0, pnlPercent: 0 };
   }
   
-  const priceChange = direction === 'LONG'
-    ? (currentPrice - entryPrice) / entryPrice
-    : (entryPrice - currentPrice) / entryPrice;
+  // Price change ratio
+  const priceChange = currentPrice - entryPrice;
+  const priceChangeRatio = priceChange / entryPrice;
   
-  const pnlPercent = priceChange * leverage * 100;
-  const positionValue = size * entryPrice;
-  const pnlUSDT = positionValue * priceChange * leverage;
+  // PnL percentage = price change % (NOT multiplied by leverage)
+  // Leverage affects position size, not the price movement percentage
+  const pnlPercent = priceChangeRatio * 100 * (direction === 'LONG' ? 1 : -1);
+  
+  // PnL in USDT considers leverage (affects the notional value)
+  const positionValue = size * entryPrice * leverage;
+  const pnlUSDT = priceChangeRatio * positionValue * (direction === 'LONG' ? 1 : -1);
   
   return { pnlUSDT, pnlPercent };
 }

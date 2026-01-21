@@ -20,7 +20,7 @@ import type { OpenPosition, PositionAnalysis, TacticalAction } from '@/lib/trade
 import type { IntradaySignal } from '@/hooks/useIntradaySignal';
 import type { LiquidationData } from '@/hooks/useLiquidationPools';
 import type { IntradayAsset } from '@/hooks/useIntradayData';
-import { analyzeOpenPosition, buildOpenPosition, calculatePnL } from '@/lib/positionManager';
+import { analyzeOpenPosition, buildOpenPosition, calculatePnL, calculatePersonalLiquidation } from '@/lib/positionManager';
 
 interface PositionManagerProps {
   currentPrice: number;
@@ -362,6 +362,18 @@ export function PositionManager({
             <span className="text-muted-foreground">Valor:</span>
             <p className="font-mono font-semibold">
               ${analysis.position.positionValueUSDT.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </p>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Liquidación:</span>
+            <p className="font-mono font-semibold text-red-400">
+              ${analysis.riskAssessment.nearbyLiquidationZone.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </p>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Margen:</span>
+            <p className="font-mono font-semibold text-amber-400">
+              {analysis.riskAssessment.distanceToLiquidation.toFixed(1)}%
             </p>
           </div>
         </div>
