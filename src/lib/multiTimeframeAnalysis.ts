@@ -21,23 +21,29 @@ export interface ConfluenceResult {
 }
 
 // ============================================================================
-// TIMEFRAME WEIGHTS
-// Higher timeframes carry more weight (less noise, more reliable)
+// TIMEFRAME SEQUENCE (for adjacent TF lookup)
 // ============================================================================
 
-const TIMEFRAME_WEIGHTS: Record<AllTimeframes, number> = {
-  '1m': 0.5,   // Most noise
-  '5m': 1.0,
-  '15m': 1.5,
-  '1h': 2.0,
-  '4h': 2.5,
-  '1d': 3.0,
-  '1w': 3.5    // Highest reliability
-};
+export const TIMEFRAME_SEQUENCE: IntradayTimeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
 // ============================================================================
-// CONFLUENCE MATRIX
-// Each timeframe validates with specific TFs (not necessarily adjacent)
+// GET ADJACENT TIMEFRAMES (previous and next in sequence)
+// ============================================================================
+
+export function getSequentialAdjacentTFs(timeframe: IntradayTimeframe): {
+  previous: IntradayTimeframe | null;
+  next: IntradayTimeframe | null;
+} {
+  const index = TIMEFRAME_SEQUENCE.indexOf(timeframe);
+  
+  return {
+    previous: index > 0 ? TIMEFRAME_SEQUENCE[index - 1] : null,
+    next: index < TIMEFRAME_SEQUENCE.length - 1 ? TIMEFRAME_SEQUENCE[index + 1] : null
+  };
+}
+
+// ============================================================================
+// LEGACY CONFLUENCE MATRIX (kept for validation timeframes)
 // ============================================================================
 
 type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
@@ -48,11 +54,11 @@ const CONFLUENCE_MATRIX: Record<Timeframe, {
 }> = {
   '1m': {
     lower: [],
-    upper: ['5m', '1h']
+    upper: ['5m']
   },
   '5m': {
     lower: ['1m'],
-    upper: ['1h']
+    upper: ['15m']
   },
   '15m': {
     lower: ['5m'],
@@ -141,11 +147,17 @@ export function getEMAAlignment(
 }
 
 // ============================================================================
-// CONFLUENCE CALCULATION
+// NEW CONFLUENCE CALCULATION - Average of matching adjacent TF confidence
 // ============================================================================
 
 /**
- * Calculate confluence score and adjusted confidence
+ * Calculate confluence score as average of adjacent TF confidence that match direction
+ * 
+ * Formula:
+ * - For each adjacent TF (previous and next in sequence):
+ *   - If direction matches → add its confidence
+ *   - If direction doesn't match → add 0
+ * - Divide by number of adjacent TFs (1 or 2)
  */
 function calculateConfluence(
   currentSignal: TimeframeSignal,
@@ -155,105 +167,121 @@ function calculateConfluence(
   agreements: number;
   disagreements: number;
   adjustedConfidence: number;
+  details: {
+    previousTF?: { timeframe: string; direction: string; confidence: number; matches: boolean };
+    nextTF?: { timeframe: string; direction: string; confidence: number; matches: boolean };
+  };
 } {
-  console.log('[MultiTF] Analyzing confluence for', currentSignal.timeframe);
+  console.log('=== MULTI-TF CONFLUENCE DEBUG ===');
+  console.log(`Current: ${currentSignal.timeframe} ${currentSignal.direction} (Conf: ${currentSignal.confidence}%)`);
   
-  const validation = getValidationTimeframes(currentSignal.timeframe as IntradayTimeframe);
+  const { previous, next } = getSequentialAdjacentTFs(currentSignal.timeframe as IntradayTimeframe);
   
+  let totalConfidence = 0;
+  let count = 0;
   let agreements = 0;
   let disagreements = 0;
-  let weightedAgreement = 0;
-  let totalWeight = 0;
+  const details: {
+    previousTF?: { timeframe: string; direction: string; confidence: number; matches: boolean };
+    nextTF?: { timeframe: string; direction: string; confidence: number; matches: boolean };
+  } = {};
   
-  adjacentSignals.forEach(signal => {
-    const weight = TIMEFRAME_WEIGHTS[signal.timeframe];
-    totalWeight += weight;
+  // Check PREVIOUS timeframe (shorter)
+  if (previous) {
+    count++;
+    const prevSignal = adjacentSignals.find(s => s.timeframe === previous);
     
-    // Check for agreement - NEUTRAL only counts as agreement if current signal is weak (<60%)
-    const isAgreement = 
-      (currentSignal.direction === signal.direction) ||
-      (currentSignal.direction === 'NEUTRAL' && signal.confidence < 50) ||
-      (signal.direction === 'NEUTRAL' && currentSignal.confidence < 60);
+    console.log(`Previous TF: ${previous}`);
     
-    if (isAgreement) {
-      agreements++;
-      weightedAgreement += weight;
-      console.log(`  ✅ ${signal.timeframe} agrees: ${signal.direction} ${signal.confidence.toFixed(0)}%`);
+    if (prevSignal) {
+      const matches = prevSignal.direction === currentSignal.direction;
+      details.previousTF = {
+        timeframe: previous,
+        direction: prevSignal.direction,
+        confidence: prevSignal.confidence,
+        matches
+      };
+      
+      console.log(`  - Direction: ${prevSignal.direction}, Confidence: ${prevSignal.confidence}%`);
+      console.log(`  - Matches: ${matches ? 'YES ✅' : 'NO ❌'}`);
+      
+      if (matches) {
+        totalConfidence += prevSignal.confidence;
+        agreements++;
+      } else {
+        disagreements++;
+      }
     } else {
-      disagreements++;
-      console.log(`  ❌ ${signal.timeframe} disagrees: ${signal.direction} ${signal.confidence.toFixed(0)}%`);
+      console.log(`  - No data available`);
     }
-  });
-  
-  // Confluence score = weighted agreement percentage
-  const confluenceScore = totalWeight > 0 
-    ? (weightedAgreement / totalWeight) * 100 
-    : 50;
-  
-  // Adjust confidence based on validation timeframes
-  let adjustedConfidence = currentSignal.confidence;
-  
-  // Validate with UPPER timeframes (MULTIPLE) - heavier penalties
-  validation.upper.forEach(tf => {
-    const signal = adjacentSignals.find(s => s.timeframe === tf);
-    if (signal) {
-      if (signal.direction !== currentSignal.direction && 
-          signal.direction !== 'NEUTRAL' &&
-          currentSignal.direction !== 'NEUTRAL') {
-        // Contradiction = heavy penalty
-        const penalty = signal.confidence > 70 ? 25 : 15;
-        adjustedConfidence = Math.max(30, adjustedConfidence - penalty);
-        console.log(`  ⚠️ Upper TF (${tf}) contradicts: ${signal.direction} - penalty: -${penalty}%`);
-      } else if (signal.direction === currentSignal.direction) {
-        // Agreement = bonus
-        const bonus = signal.confidence > 70 ? 10 : 5;
-        adjustedConfidence = Math.min(95, adjustedConfidence + bonus);
-        console.log(`  ✅ Upper TF (${tf}) agrees - bonus: +${bonus}%`);
-      } else if (signal.direction === 'NEUTRAL' && 
-                 currentSignal.direction !== 'NEUTRAL' &&
-                 currentSignal.confidence > 70) {
-        // Upper is NEUTRAL but current is strong = no confirmation penalty
-        const penalty = 15;
-        adjustedConfidence = Math.max(35, adjustedConfidence - penalty);
-        console.log(`  ⚠️ Upper TF (${tf}) is NEUTRAL - no confirmation penalty: -${penalty}%`);
-      }
-    }
-  });
-  
-  // Validate with LOWER timeframes (MULTIPLE) - lighter adjustments
-  validation.lower.forEach(tf => {
-    const signal = adjacentSignals.find(s => s.timeframe === tf);
-    if (signal) {
-      if (signal.direction === currentSignal.direction && signal.confidence > 70) {
-        // Lower agrees strongly = slight bonus
-        const bonus = 5;
-        adjustedConfidence = Math.min(95, adjustedConfidence + bonus);
-        console.log(`  ✅ Lower TF (${tf}) agrees strongly - bonus: +${bonus}%`);
-      } else if (signal.direction !== currentSignal.direction && 
-                 signal.direction !== 'NEUTRAL' &&
-                 currentSignal.direction !== 'NEUTRAL' &&
-                 signal.confidence > 60) {
-        // Lower contradicts strongly = penalty
-        const penalty = 10;
-        adjustedConfidence = Math.max(35, adjustedConfidence - penalty);
-        console.log(`  ⚠️ Lower TF (${tf}) contradicts: ${signal.direction} - penalty: -${penalty}%`);
-      }
-    }
-  });
-  
-  // Full confluence bonus
-  if (disagreements === 0 && agreements >= 2) {
-    adjustedConfidence = Math.min(95, adjustedConfidence + 5);
-    console.log(`  🎯 Full confluence - bonus: +5%`);
+  } else {
+    console.log(`Previous TF: N/A (first in sequence)`);
   }
   
-  console.log(`  📊 Result: ${currentSignal.confidence.toFixed(0)}% → ${adjustedConfidence.toFixed(0)}% (confluence: ${confluenceScore.toFixed(0)}%)`);
+  // Check NEXT timeframe (longer)
+  if (next) {
+    count++;
+    const nextSignal = adjacentSignals.find(s => s.timeframe === next);
+    
+    console.log(`Next TF: ${next}`);
+    
+    if (nextSignal) {
+      const matches = nextSignal.direction === currentSignal.direction;
+      details.nextTF = {
+        timeframe: next,
+        direction: nextSignal.direction,
+        confidence: nextSignal.confidence,
+        matches
+      };
+      
+      console.log(`  - Direction: ${nextSignal.direction}, Confidence: ${nextSignal.confidence}%`);
+      console.log(`  - Matches: ${matches ? 'YES ✅' : 'NO ❌'}`);
+      
+      if (matches) {
+        totalConfidence += nextSignal.confidence;
+        agreements++;
+      } else {
+        disagreements++;
+      }
+    } else {
+      console.log(`  - No data available`);
+    }
+  } else {
+    console.log(`Next TF: N/A (last in sequence)`);
+  }
+  
+  // Calculate confluence score (average of matching confidence)
+  const confluenceScore = count > 0 ? Math.round(totalConfidence / count) : 0;
+  
+  console.log(`Total Confidence: ${totalConfidence}`);
+  console.log(`Count: ${count}`);
+  console.log(`Multi-TF Result: ${confluenceScore}%`);
+  console.log('================================');
+  
+  // Adjust confidence based on confluence
+  let adjustedConfidence = currentSignal.confidence;
+  
+  // Apply penalties/bonuses based on the new formula
+  if (confluenceScore >= 80) {
+    // Strong confluence bonus
+    adjustedConfidence = Math.min(95, adjustedConfidence + 10);
+  } else if (confluenceScore >= 60) {
+    // Good confluence - slight bonus
+    adjustedConfidence = Math.min(95, adjustedConfidence + 5);
+  } else if (confluenceScore < 20) {
+    // Very weak or conflicting - penalty
+    adjustedConfidence = Math.max(30, adjustedConfidence - 15);
+  } else if (confluenceScore < 40) {
+    // Weak confluence - moderate penalty
+    adjustedConfidence = Math.max(35, adjustedConfidence - 10);
+  }
   
   return {
     confluenceScore,
     agreements,
     disagreements,
-    adjustedConfidence: Math.round(adjustedConfidence)
+    adjustedConfidence: Math.round(adjustedConfidence),
+    details
   };
 }
 
@@ -263,53 +291,57 @@ function calculateConfluence(
 
 /**
  * Generate multi-timeframe recommendation based on confluence
+ * 
+ * Confluence interpretation:
+ * | Multi-TF % | Color      | Significado              |
+ * |------------|------------|--------------------------|
+ * | 80-100%    | 🟢 Verde   | Confluencia muy fuerte   |
+ * | 60-79%     | 🟡 Amarillo| Confluencia buena        |
+ * | 40-59%     | 🟠 Naranja | Confluencia moderada     |
+ * | 20-39%     | 🔴 Rojo    | Confluencia débil        |
+ * | 0-19%      | 🚨 Rojo    | Sin confluencia/Conflicto|
  */
 export function generateMultiTFRecommendation(
   currentSignal: TimeframeSignal,
   adjacentSignals: TimeframeSignal[]
 ): ConfluenceResult {
-  // If no adjacent signals, return original confidence
+  // If no adjacent signals, return original confidence with 0 confluence
   if (adjacentSignals.length === 0) {
     return {
       adjustedConfidence: currentSignal.confidence,
-      confluenceScore: 50,
+      confluenceScore: 0,
       recommendation: 'Sin datos de otros timeframes',
-      warnings: []
+      warnings: ['No hay TFs adyacentes para validar']
     };
   }
   
   const analysis = calculateConfluence(currentSignal, adjacentSignals);
-  const validation = getValidationTimeframes(currentSignal.timeframe as IntradayTimeframe);
   
   const warnings: string[] = [];
   let recommendation = '';
   
-  // Generate recommendation based on confluence score
+  // Generate recommendation based on NEW confluence thresholds
   if (analysis.confluenceScore >= 80) {
-    recommendation = 'Excelente confluencia - Señal confiable';
+    recommendation = 'Confluencia muy fuerte - Alta confiabilidad';
   } else if (analysis.confluenceScore >= 60) {
-    recommendation = 'Confluencia moderada - Proceder con precaución';
+    recommendation = 'Confluencia buena - Señal confiable';
   } else if (analysis.confluenceScore >= 40) {
-    recommendation = 'Baja confluencia - Verificar timeframes superiores';
-    warnings.push('Señales mixtas en otros timeframes');
+    recommendation = 'Confluencia moderada - Precaución';
+    warnings.push('Confluencia moderada, considerar reducir tamaño');
+  } else if (analysis.confluenceScore >= 20) {
+    recommendation = 'Confluencia débil - Alto riesgo';
+    warnings.push('Señales mixtas en timeframes adyacentes');
   } else {
-    recommendation = 'Conflicto entre timeframes - Esperar confirmación';
-    warnings.push('Alta divergencia entre timeframes');
+    recommendation = 'Sin confluencia - Evitar entrada';
+    warnings.push('Conflicto entre timeframes');
   }
   
-  // Specific warnings for upper TF conflicts
-  validation.upper.forEach(tf => {
-    const upperSignal = adjacentSignals.find(s => s.timeframe === tf);
-    if (upperSignal && 
-        upperSignal.direction !== currentSignal.direction &&
-        upperSignal.direction !== 'NEUTRAL' &&
-        currentSignal.direction !== 'NEUTRAL') {
-      warnings.push(`TF ${tf} indica ${upperSignal.direction}`);
-    }
-  });
-  
-  if (currentSignal.confidence > 75 && analysis.adjustedConfidence < 60) {
-    warnings.push('Confianza reducida por divergencia con TFs superiores');
+  // Add specific warnings about adjacent TF conflicts
+  if (analysis.details.previousTF && !analysis.details.previousTF.matches) {
+    warnings.push(`${analysis.details.previousTF.timeframe}: ${analysis.details.previousTF.direction}`);
+  }
+  if (analysis.details.nextTF && !analysis.details.nextTF.matches) {
+    warnings.push(`${analysis.details.nextTF.timeframe}: ${analysis.details.nextTF.direction}`);
   }
   
   return {
