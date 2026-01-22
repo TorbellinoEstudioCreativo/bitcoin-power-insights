@@ -45,43 +45,46 @@ export interface TradeSetup {
 // ============================================================================
 
 /**
- * Calculate total score for a signal
- * Weights: confidence (50%), confluence (30%), volatility (10%), OI (10%)
+ * Timeframe reliability weights
+ * Higher timeframes = more reliable signals
+ */
+export const TIMEFRAME_WEIGHTS: Record<IntradayTimeframe, number> = {
+  '1d':  1.0,   // Daily - máxima fiabilidad
+  '4h':  0.85,  // 4-hour
+  '1h':  0.7,   // 1-hour
+  '15m': 0.55,  // 15-minute
+  '5m':  0.4,   // 5-minute
+  '1m':  0.25   // 1-minute - mínima fiabilidad (scalping)
+};
+
+/**
+ * Calculate total score for a signal using the NEW formula:
+ * - Confidence: 35%
+ * - Multi-TF Confluence: 35%
+ * - Timeframe Weight: 30%
  */
 export function calculateTotalScore(
   confidence: number,
   confluenceScore: number,
-  volatility: number,
-  oiChange: number
+  timeframe: IntradayTimeframe
 ): number {
   // Validate and sanitize inputs
   const safeConfidence = Math.max(0, Math.min(100, confidence || 0));
   const safeConfluence = Math.max(0, Math.min(100, confluenceScore || 0));
-  const safeVolatility = Math.max(0, Math.min(100, volatility ?? 50));
-  const safeOiChange = oiChange ?? 0;
-
-  const confidenceWeight = 0.5;
-  const confluenceWeight = 0.3;
-  const volatilityWeight = 0.1;
-  const oiWeight = 0.1;
+  const tfWeight = TIMEFRAME_WEIGHTS[timeframe] || 0.5;
   
-  // Moderate volatility is optimal (50 = perfect)
-  const volatilityScore = 100 - Math.abs(safeVolatility - 50);
-  
-  // Growing OI is positive
-  const oiScore = Math.max(0, Math.min(100, 50 + safeOiChange * 5));
-  
+  // New formula: 35% confidence + 35% confluence + 30% timeframe weight
   const totalScore = 
-    (safeConfidence * confidenceWeight) +
-    (safeConfluence * confluenceWeight) +
-    (volatilityScore * volatilityWeight) +
-    (oiScore * oiWeight);
+    (safeConfidence * 0.35) +
+    (safeConfluence * 0.35) +
+    (tfWeight * 100 * 0.30);
   
-  return Math.round(Math.max(0, Math.min(100, totalScore)));
+  return Math.round(Math.max(0, Math.min(100, totalScore)) * 10) / 10;
 }
 
 /**
- * Rank signals and return top 3
+ * Rank signals and return top 5 (was 3)
+ * Now uses the new scoring formula with timeframe weights
  */
 export function rankSignals(
   allSignals: Array<{
@@ -90,21 +93,21 @@ export function rankSignals(
     direction: 'LONG' | 'SHORT' | 'NEUTRAL';
     confidence: number;
     confluenceScore: number;
-    volatility: number;
-    oiChange: number;
+    volatility?: number;
+    oiChange?: number;
   }>
 ): SignalScore[] {
   const scored: SignalScore[] = [];
   
   allSignals.forEach(signal => {
-    // Skip neutral signals
+    // Skip neutral signals - only rank clear directional signals
     if (signal.direction === 'NEUTRAL') return;
     
+    // Use NEW scoring formula with timeframe weight
     const totalScore = calculateTotalScore(
       signal.confidence,
       signal.confluenceScore,
-      signal.volatility,
-      signal.oiChange
+      signal.timeframe
     );
     
     scored.push({
@@ -124,7 +127,8 @@ export function rankSignals(
   // Assign ranks
   scored.forEach((s, i) => s.rank = i + 1);
   
-  return scored.slice(0, 3);
+  // Return top 5 instead of 3
+  return scored.slice(0, 5);
 }
 
 // ============================================================================
