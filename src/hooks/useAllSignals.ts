@@ -30,9 +30,7 @@ export interface AllSignalsResult {
 // STRATEGIC SIGNAL COMBINATIONS
 // ============================================================================
 
-// We monitor a strategic subset to avoid rate limits:
-// - BTC: all timeframes (primary asset)
-// - ETH/BNB: popular timeframes only
+// We now monitor ALL assets and ALL timeframes for proper ranking
 const MONITORED_COMBINATIONS: Array<{ asset: IntradayAsset; timeframe: IntradayTimeframe }> = [
   // BTC - all timeframes
   { asset: 'BTC', timeframe: '1m' },
@@ -41,14 +39,20 @@ const MONITORED_COMBINATIONS: Array<{ asset: IntradayAsset; timeframe: IntradayT
   { asset: 'BTC', timeframe: '1h' },
   { asset: 'BTC', timeframe: '4h' },
   { asset: 'BTC', timeframe: '1d' },
-  // ETH - popular timeframes
+  // ETH - all timeframes
+  { asset: 'ETH', timeframe: '1m' },
+  { asset: 'ETH', timeframe: '5m' },
   { asset: 'ETH', timeframe: '15m' },
   { asset: 'ETH', timeframe: '1h' },
   { asset: 'ETH', timeframe: '4h' },
-  // BNB - popular timeframes
+  { asset: 'ETH', timeframe: '1d' },
+  // BNB - all timeframes
+  { asset: 'BNB', timeframe: '1m' },
+  { asset: 'BNB', timeframe: '5m' },
   { asset: 'BNB', timeframe: '15m' },
   { asset: 'BNB', timeframe: '1h' },
   { asset: 'BNB', timeframe: '4h' },
+  { asset: 'BNB', timeframe: '1d' },
 ];
 
 // ============================================================================
@@ -139,6 +143,7 @@ export function useAllSignals(): AllSignalsResult {
   
   // Fetch data for all monitored combinations
   // Using fixed hook calls to respect React rules
+  // BTC - all timeframes
   const btc1m = useIntradayData('BTC', '1m');
   const btc5m = useIntradayData('BTC', '5m');
   const btc15m = useIntradayData('BTC', '15m');
@@ -146,18 +151,27 @@ export function useAllSignals(): AllSignalsResult {
   const btc4h = useIntradayData('BTC', '4h');
   const btc1d = useIntradayData('BTC', '1d');
   
+  // ETH - all timeframes
+  const eth1m = useIntradayData('ETH', '1m');
+  const eth5m = useIntradayData('ETH', '5m');
   const eth15m = useIntradayData('ETH', '15m');
   const eth1h = useIntradayData('ETH', '1h');
   const eth4h = useIntradayData('ETH', '4h');
+  const eth1d = useIntradayData('ETH', '1d');
   
+  // BNB - all timeframes
+  const bnb1m = useIntradayData('BNB', '1m');
+  const bnb5m = useIntradayData('BNB', '5m');
   const bnb15m = useIntradayData('BNB', '15m');
   const bnb1h = useIntradayData('BNB', '1h');
   const bnb4h = useIntradayData('BNB', '4h');
+  const bnb1d = useIntradayData('BNB', '1d');
   
   // Build data map
   const dataMap = useMemo(() => {
     const map = new Map<string, { data: IntradayData | null; isLoading: boolean }>();
     
+    // BTC - all timeframes
     map.set('BTC-1m', { data: btc1m.data ?? null, isLoading: btc1m.isLoading });
     map.set('BTC-5m', { data: btc5m.data ?? null, isLoading: btc5m.isLoading });
     map.set('BTC-15m', { data: btc15m.data ?? null, isLoading: btc15m.isLoading });
@@ -165,13 +179,21 @@ export function useAllSignals(): AllSignalsResult {
     map.set('BTC-4h', { data: btc4h.data ?? null, isLoading: btc4h.isLoading });
     map.set('BTC-1d', { data: btc1d.data ?? null, isLoading: btc1d.isLoading });
     
+    // ETH - all timeframes
+    map.set('ETH-1m', { data: eth1m.data ?? null, isLoading: eth1m.isLoading });
+    map.set('ETH-5m', { data: eth5m.data ?? null, isLoading: eth5m.isLoading });
     map.set('ETH-15m', { data: eth15m.data ?? null, isLoading: eth15m.isLoading });
     map.set('ETH-1h', { data: eth1h.data ?? null, isLoading: eth1h.isLoading });
     map.set('ETH-4h', { data: eth4h.data ?? null, isLoading: eth4h.isLoading });
+    map.set('ETH-1d', { data: eth1d.data ?? null, isLoading: eth1d.isLoading });
     
+    // BNB - all timeframes
+    map.set('BNB-1m', { data: bnb1m.data ?? null, isLoading: bnb1m.isLoading });
+    map.set('BNB-5m', { data: bnb5m.data ?? null, isLoading: bnb5m.isLoading });
     map.set('BNB-15m', { data: bnb15m.data ?? null, isLoading: bnb15m.isLoading });
     map.set('BNB-1h', { data: bnb1h.data ?? null, isLoading: bnb1h.isLoading });
     map.set('BNB-4h', { data: bnb4h.data ?? null, isLoading: bnb4h.isLoading });
+    map.set('BNB-1d', { data: bnb1d.data ?? null, isLoading: bnb1d.isLoading });
     
     return map;
   }, [
@@ -181,15 +203,21 @@ export function useAllSignals(): AllSignalsResult {
     btc1h.data, btc1h.isLoading,
     btc4h.data, btc4h.isLoading,
     btc1d.data, btc1d.isLoading,
+    eth1m.data, eth1m.isLoading,
+    eth5m.data, eth5m.isLoading,
     eth15m.data, eth15m.isLoading,
     eth1h.data, eth1h.isLoading,
     eth4h.data, eth4h.isLoading,
+    eth1d.data, eth1d.isLoading,
+    bnb1m.data, bnb1m.isLoading,
+    bnb5m.data, bnb5m.isLoading,
     bnb15m.data, bnb15m.isLoading,
     bnb1h.data, bnb1h.isLoading,
     bnb4h.data, bnb4h.isLoading,
+    bnb1d.data, bnb1d.isLoading,
   ]);
   
-  // Build validation data map for each asset
+  // Build validation data map for each asset (all have all TFs now)
   const validationDataMaps = useMemo(() => {
     const maps: Record<IntradayAsset, Map<string, IntradayData | null>> = {
       BTC: new Map(),
@@ -197,13 +225,11 @@ export function useAllSignals(): AllSignalsResult {
       BNB: new Map()
     };
     
-    // BTC has all TFs
-    ['1m', '5m', '15m', '1h', '4h', '1d'].forEach(tf => {
-      maps.BTC.set(tf, dataMap.get(`BTC-${tf}`)?.data ?? null);
-    });
+    const allTFs = ['1m', '5m', '15m', '1h', '4h', '1d'];
     
-    // ETH/BNB only have popular TFs
-    ['15m', '1h', '4h'].forEach(tf => {
+    // All assets now have all timeframes
+    allTFs.forEach(tf => {
+      maps.BTC.set(tf, dataMap.get(`BTC-${tf}`)?.data ?? null);
       maps.ETH.set(tf, dataMap.get(`ETH-${tf}`)?.data ?? null);
       maps.BNB.set(tf, dataMap.get(`BNB-${tf}`)?.data ?? null);
     });
