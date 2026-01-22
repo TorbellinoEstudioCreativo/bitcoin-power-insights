@@ -11,7 +11,7 @@ import {
   getDirectionFromEMAs, 
   getEMAAlignment,
   generateMultiTFRecommendation,
-  getValidationTimeframes,
+  getSequentialAdjacentTFs,
   TimeframeSignal
 } from '@/lib/multiTimeframeAnalysis';
 import { calculateIntradayTPs } from '@/lib/intradayCalculations';
@@ -92,14 +92,16 @@ function calculateSignalWithConfluence(
   // Base confidence
   let confidence = calculateQuickConfidence(data);
   
-  // Get validation timeframes from matrix
-  const { lower, upper } = getValidationTimeframes(timeframe);
-  const validationTFs = [...lower, ...upper];
+  // Get sequential adjacent TFs (previous and next in sequence)
+  const { previous, next } = getSequentialAdjacentTFs(timeframe);
+  const adjacentTFs: IntradayTimeframe[] = [];
+  if (previous) adjacentTFs.push(previous);
+  if (next) adjacentTFs.push(next);
   
   // Build adjacent signals for confluence
   const adjacentSignals: TimeframeSignal[] = [];
   
-  validationTFs.forEach(tf => {
+  adjacentTFs.forEach(tf => {
     const tfData = validationData.get(tf);
     if (tfData) {
       const tfDirection = getDirectionFromEMAs(tfData.emas.ema9, tfData.emas.ema21, tfData.emas.ema50);

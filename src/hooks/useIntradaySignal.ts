@@ -6,6 +6,7 @@ import {
   generateMultiTFRecommendation, 
   getDirectionFromEMAs, 
   getEMAAlignment,
+  getSequentialAdjacentTFs,
   TimeframeSignal 
 } from '@/lib/multiTimeframeAnalysis';
 
@@ -227,27 +228,37 @@ export function useIntradaySignal(
     if (adjacentData && adjacentData.signals.length > 0) {
       const adjacentTFSignals: TimeframeSignal[] = [];
       
-      // Build signals from all adjacent timeframes
+      // Get the sequential adjacent TFs for proper filtering
+      const { previous, next } = getSequentialAdjacentTFs(timeframe);
+      const relevantTFs = [previous, next].filter(Boolean);
+      
+      // Build signals from adjacent timeframes (only sequential ones)
       adjacentData.signals.forEach(({ timeframe: tfName, data }) => {
-        if (data) {
+        // Only include signals from sequential adjacent TFs
+        if (data && relevantTFs.includes(tfName as IntradayTimeframe)) {
           const tfEmas = data.emas;
           const tfDirection = getDirectionFromEMAs(tfEmas.ema9, tfEmas.ema21, tfEmas.ema50);
           const tfAlignment = getEMAAlignment(tfEmas.ema9, tfEmas.ema21, tfEmas.ema50);
           
-          // Quick confidence calculation based on EMA alignment
+          // Calculate confidence based on EMA alignment and momentum
           let tfConfidence = 50;
-          if (tfAlignment === 'bullish') tfConfidence = 70;
-          else if (tfAlignment === 'bearish') tfConfidence = 70;
+          if (tfAlignment === 'bullish' || tfAlignment === 'bearish') {
+            tfConfidence = 65;
+            // Add momentum bonus
+            const momentum = Math.abs(data.change24h || 0);
+            if (momentum > 2) tfConfidence += 15;
+            else if (momentum > 1) tfConfidence += 10;
+          }
           
           adjacentTFSignals.push({
             timeframe: tfName,
             direction: tfDirection,
-            confidence: tfConfidence,
+            confidence: Math.min(90, tfConfidence),
             emaAlignment: tfAlignment
           });
           
-          // Store first lower/upper for UI display (legacy compatibility)
-          if (!adjacentSignals?.lower) {
+          // Store for UI display
+          if (tfName === previous) {
             adjacentSignals = {
               ...adjacentSignals,
               lower: {
@@ -256,7 +267,7 @@ export function useIntradaySignal(
                 confidence: tfConfidence
               }
             };
-          } else if (!adjacentSignals?.upper) {
+          } else if (tfName === next) {
             adjacentSignals = {
               ...adjacentSignals,
               upper: {
@@ -287,9 +298,9 @@ export function useIntradaySignal(
         console.log('[useIntradaySignal] 📊 Multi-TF Confluence:', {
           original: `${confidence.toFixed(0)}%`,
           adjusted: `${adjustedConfidence}%`,
-          confluenceScore: `${confluenceScore.toFixed(0)}%`,
+          confluenceScore: `${confluenceScore}%`,
           recommendation: multiTFRecommendation,
-          adjacentTFs: adjacentTFSignals.map(s => `${s.timeframe}: ${s.direction}`)
+          adjacentTFs: adjacentTFSignals.map(s => `${s.timeframe}: ${s.direction} (${s.confidence}%)`)
         });
       }
     }
