@@ -14,13 +14,20 @@ import type { LiquidationData } from '@/hooks/useLiquidationPools';
  * Calculate personal liquidation price for a specific position
  * Uses maintenance margin rate (varies by asset)
  */
+// Maintenance margin rates by asset (approximate Binance values for Tier 1)
+const MAINTENANCE_MARGIN_RATES: Record<string, number> = {
+  BTC: 0.004,   // 0.4%
+  ETH: 0.005,   // 0.5%
+  BNB: 0.006    // 0.6%
+};
+
 export function calculatePersonalLiquidation(
   entryPrice: number,
   leverage: number,
-  direction: 'LONG' | 'SHORT'
+  direction: 'LONG' | 'SHORT',
+  asset: 'BTC' | 'ETH' | 'BNB' = 'BTC'
 ): number {
-  // Maintenance margin rates by asset (approximate Binance values)
-  const maintenanceMarginRate = 0.004; // 0.4% for BTC
+  const maintenanceMarginRate = MAINTENANCE_MARGIN_RATES[asset] || 0.005;
   
   if (direction === 'LONG') {
     // LONG: Liq = Entry * (1 - (1/leverage) + MMR)
@@ -29,6 +36,10 @@ export function calculatePersonalLiquidation(
     // SHORT: Liq = Entry * (1 + (1/leverage) - MMR)
     return entryPrice * (1 + (1 / leverage) - maintenanceMarginRate);
   }
+}
+
+export function getMaintenanceMarginRate(asset: 'BTC' | 'ETH' | 'BNB'): number {
+  return MAINTENANCE_MARGIN_RATES[asset] || 0.005;
 }
 
 // ============================================================================
@@ -60,7 +71,8 @@ export function analyzeOpenPosition(
   const personalLiquidation = calculatePersonalLiquidation(
     position.entryPrice,
     position.leverage,
-    position.direction
+    position.direction,
+    position.asset
   );
   
   // 3. Calculate distance to liquidation based on PERSONAL liquidation
