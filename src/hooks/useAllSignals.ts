@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useIntradayData, IntradayAsset, IntradayTimeframe, IntradayData } from './useIntradayData';
+import { useIntradayData, IntradayAsset, IntradayTimeframe, AllTimeframes, IntradayData } from './useIntradayData';
 import { useDerivatives } from './useDerivatives';
 import { 
   rankSignals, 
@@ -94,7 +94,7 @@ function calculateSignalWithConfluence(
   
   // Get sequential adjacent TFs (previous and next in sequence)
   const { previous, next } = getSequentialAdjacentTFs(timeframe);
-  const adjacentTFs: IntradayTimeframe[] = [];
+  const adjacentTFs: AllTimeframes[] = [];
   if (previous) adjacentTFs.push(previous);
   if (next) adjacentTFs.push(next);
   
