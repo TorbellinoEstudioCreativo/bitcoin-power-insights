@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { IntradayTimeframe, AllTimeframes } from '@/hooks/useIntradayData';
+import type { HiddenTimeframe } from '@/hooks/useIntradayData';
 
 export type Direction = 'LONG' | 'SHORT' | 'NEUTRAL';
 
@@ -26,19 +27,23 @@ export interface ConfluenceResult {
 
 export const TIMEFRAME_SEQUENCE: IntradayTimeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
+// Extended sequence including hidden 1w for confluence validation
+export const TIMEFRAME_SEQUENCE_EXTENDED: AllTimeframes[] = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'];
+
 // ============================================================================
 // GET ADJACENT TIMEFRAMES (previous and next in sequence)
 // ============================================================================
 
 export function getSequentialAdjacentTFs(timeframe: IntradayTimeframe): {
-  previous: IntradayTimeframe | null;
-  next: IntradayTimeframe | null;
+  previous: AllTimeframes | null;
+  next: AllTimeframes | null;
 } {
-  const index = TIMEFRAME_SEQUENCE.indexOf(timeframe);
+  // Use extended sequence to include 1w as next for 1d
+  const index = TIMEFRAME_SEQUENCE_EXTENDED.indexOf(timeframe);
   
   return {
-    previous: index > 0 ? TIMEFRAME_SEQUENCE[index - 1] : null,
-    next: index < TIMEFRAME_SEQUENCE.length - 1 ? TIMEFRAME_SEQUENCE[index + 1] : null
+    previous: index > 0 ? TIMEFRAME_SEQUENCE_EXTENDED[index - 1] : null,
+    next: index < TIMEFRAME_SEQUENCE_EXTENDED.length - 1 ? TIMEFRAME_SEQUENCE_EXTENDED[index + 1] : null
   };
 }
 
