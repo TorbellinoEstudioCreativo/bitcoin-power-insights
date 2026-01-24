@@ -13,14 +13,16 @@ import {
   Trash2,
   Edit2,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Bitcoin,
+  Coins
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { OpenPosition, PositionAnalysis, TacticalAction } from '@/lib/tradeRecommender';
 import type { IntradaySignal } from '@/hooks/useIntradaySignal';
 import type { LiquidationData } from '@/hooks/useLiquidationPools';
 import type { IntradayAsset } from '@/hooks/useIntradayData';
-import { analyzeOpenPosition, buildOpenPosition, calculatePnL, calculatePersonalLiquidation } from '@/lib/positionManager';
+import { analyzeOpenPosition, buildOpenPosition, calculatePnL, calculatePersonalLiquidation, getMaintenanceMarginRate } from '@/lib/positionManager';
 
 interface PositionManagerProps {
   currentPrice: number;
@@ -32,6 +34,18 @@ interface PositionManagerProps {
 
 const STORAGE_KEY = 'openPosition';
 
+const ASSET_ICONS: Record<IntradayAsset, React.ReactNode> = {
+  BTC: <Bitcoin className="w-4 h-4" />,
+  ETH: <Coins className="w-4 h-4" />,
+  BNB: <Coins className="w-4 h-4" />
+};
+
+const ASSET_COLORS: Record<IntradayAsset, string> = {
+  BTC: 'bg-orange-500/20 text-orange-500 border-orange-500/50',
+  ETH: 'bg-blue-500/20 text-blue-500 border-blue-500/50',
+  BNB: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50'
+};
+
 export function PositionManager({ 
   currentPrice, 
   currentSignal, 
@@ -40,6 +54,7 @@ export function PositionManager({
   selectedAsset 
 }: PositionManagerProps) {
   const [positionInput, setPositionInput] = useState({
+    asset: selectedAsset as IntradayAsset,
     direction: 'LONG' as 'LONG' | 'SHORT',
     entryPrice: '',
     size: '',
@@ -64,6 +79,7 @@ export function PositionManager({
         const parsed = JSON.parse(saved);
         setSavedPosition(parsed);
         setPositionInput({
+          asset: parsed.asset || 'BTC',
           direction: parsed.direction,
           entryPrice: parsed.entryPrice.toString(),
           size: parsed.size.toString(),
@@ -74,6 +90,9 @@ export function PositionManager({
       console.warn('[PositionManager] Error loading saved position:', e);
     }
   }, []);
+  
+  // Detect asset mismatch (position is for a different asset than current chart)
+  const assetMismatch = savedPosition && savedPosition.asset !== selectedAsset;
   
   // Build current position with live price
   const position = useMemo(() => {
@@ -102,6 +121,11 @@ export function PositionManager({
       return;
     }
     
+    if (field === 'asset') {
+      setPositionInput(prev => ({ ...prev, asset: value as IntradayAsset }));
+      return;
+    }
+    
     // Only allow valid numbers
     if (value === '' || /^[0-9]*\.?[0-9]*$/.test(value)) {
       setPositionInput(prev => ({ ...prev, [field]: value }));
@@ -118,8 +142,9 @@ export function PositionManager({
     if (!size || size <= 0) return;
     if (!leverage || leverage <= 0 || leverage > 200) return;
     
+    // Use the selected asset from the form, NOT from the chart context
     const newPosition = {
-      asset: selectedAsset,
+      asset: positionInput.asset,
       direction: positionInput.direction,
       entryPrice,
       size,
@@ -136,6 +161,7 @@ export function PositionManager({
     setSavedPosition(null);
     localStorage.removeItem(STORAGE_KEY);
     setPositionInput({
+      asset: selectedAsset,
       direction: 'LONG',
       entryPrice: '',
       size: '',
@@ -189,6 +215,30 @@ export function PositionManager({
         </p>
         
         <div className="space-y-3">
+          {/* Asset Selector */}
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">
+              Asset
+            </label>
+            <div className="flex gap-2">
+              {(['BTC', 'ETH', 'BNB'] as IntradayAsset[]).map(asset => (
+                <Button
+                  key={asset}
+                  variant={positionInput.asset === asset ? 'default' : 'outline'}
+                  onClick={() => handleInputChange('asset', asset)}
+                  className={cn(
+                    "flex-1",
+                    positionInput.asset === asset && ASSET_COLORS[asset]
+                  )}
+                  size="sm"
+                >
+                  {ASSET_ICONS[asset]}
+                  <span className="ml-1">{asset}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
+          
           {/* Direction */}
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">
@@ -234,7 +284,7 @@ export function PositionManager({
           {/* Size */}
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">
-              Tamaño ({selectedAsset})
+              Tamaño ({positionInput.asset})
             </label>
             <Input
               type="text"
@@ -325,9 +375,24 @@ export function PositionManager({
           </div>
         </div>
         
+        {/* Asset Mismatch Warning */}
+        {assetMismatch && (
+          <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded-lg mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+            <p className="text-xs text-amber-500">
+              Tu posición es en <strong>{savedPosition?.asset}</strong>, pero estás viendo el gráfico de <strong>{selectedAsset}</strong>. 
+              Cambia al gráfico de {savedPosition?.asset} para ver datos en tiempo real.
+            </p>
+          </div>
+        )}
+        
         <div className="flex items-center gap-2 mb-3">
-          <Badge variant="outline" className="font-bold">
-            {analysis.position.asset}
+          <Badge 
+            variant="outline" 
+            className={cn("font-bold border", savedPosition && ASSET_COLORS[savedPosition.asset])}
+          >
+            {ASSET_ICONS[analysis.position.asset as IntradayAsset]}
+            <span className="ml-1">{analysis.position.asset}</span>
           </Badge>
           <Badge 
             variant={analysis.position.direction === 'LONG' ? 'default' : 'destructive'}
@@ -336,6 +401,9 @@ export function PositionManager({
           </Badge>
           <Badge variant="outline">
             {analysis.position.leverage}x
+          </Badge>
+          <Badge variant="outline" className="text-xs">
+            MMR: {(getMaintenanceMarginRate(analysis.position.asset as IntradayAsset) * 100).toFixed(1)}%
           </Badge>
         </div>
         
