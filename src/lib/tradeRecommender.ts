@@ -59,27 +59,27 @@ export const TIMEFRAME_WEIGHTS: Record<IntradayTimeframe, number> = {
 };
 
 /**
- * Calculate total score for a signal using the NEW formula:
- * - Confidence: 35%
- * - Multi-TF Confluence: 35%
- * - Timeframe Weight: 30%
+ * Calculate total score for ranking signals.
+ *
+ * Formula: Confidence dominates (55%), confluence validates (30%),
+ * TF weight is a tiebreaker (15%) — not a main driver.
+ *
+ * A strong 5m signal should beat a weak 4h signal.
  */
 export function calculateTotalScore(
   confidence: number,
   confluenceScore: number,
   timeframe: IntradayTimeframe
 ): number {
-  // Validate and sanitize inputs
   const safeConfidence = Math.max(0, Math.min(100, confidence || 0));
   const safeConfluence = Math.max(0, Math.min(100, confluenceScore || 0));
   const tfWeight = TIMEFRAME_WEIGHTS[timeframe] || 0.5;
-  
-  // New formula: 35% confidence + 35% confluence + 30% timeframe weight
-  const totalScore = 
-    (safeConfidence * 0.35) +
-    (safeConfluence * 0.35) +
-    (tfWeight * 100 * 0.30);
-  
+
+  const totalScore =
+    (safeConfidence * 0.55) +
+    (safeConfluence * 0.30) +
+    (tfWeight * 100 * 0.15);
+
   return Math.round(Math.max(0, Math.min(100, totalScore)) * 10) / 10;
 }
 

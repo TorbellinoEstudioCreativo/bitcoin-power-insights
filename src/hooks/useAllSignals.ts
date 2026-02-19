@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useIntradayData, IntradayAsset, IntradayTimeframe, AllTimeframes, IntradayData } from './useIntradayData';
 import { useDerivatives } from './useDerivatives';
 import { logger } from '@/lib/logger';
+import { calculateSignal } from '@/lib/signalEngine';
 import {
   rankSignals,
   generateTradeSetup,
@@ -9,7 +10,6 @@ import {
   TradeSetup
 } from '@/lib/tradeRecommender';
 import {
-  getDirectionFromEMAs,
   getEMAAlignment,
   generateMultiTFRecommendation,
   getSequentialAdjacentTFs,
@@ -31,23 +31,22 @@ export interface AllSignalsResult {
 // STRATEGIC SIGNAL COMBINATIONS
 // ============================================================================
 
-// We now monitor ALL assets and ALL timeframes for proper ranking
 const MONITORED_COMBINATIONS: Array<{ asset: IntradayAsset; timeframe: IntradayTimeframe }> = [
-  // BTC - all timeframes
+  // BTC
   { asset: 'BTC', timeframe: '1m' },
   { asset: 'BTC', timeframe: '5m' },
   { asset: 'BTC', timeframe: '15m' },
   { asset: 'BTC', timeframe: '1h' },
   { asset: 'BTC', timeframe: '4h' },
   { asset: 'BTC', timeframe: '1d' },
-  // ETH - all timeframes
+  // ETH
   { asset: 'ETH', timeframe: '1m' },
   { asset: 'ETH', timeframe: '5m' },
   { asset: 'ETH', timeframe: '15m' },
   { asset: 'ETH', timeframe: '1h' },
   { asset: 'ETH', timeframe: '4h' },
   { asset: 'ETH', timeframe: '1d' },
-  // BNB - all timeframes
+  // BNB
   { asset: 'BNB', timeframe: '1m' },
   { asset: 'BNB', timeframe: '5m' },
   { asset: 'BNB', timeframe: '15m' },
@@ -57,92 +56,55 @@ const MONITORED_COMBINATIONS: Array<{ asset: IntradayAsset; timeframe: IntradayT
 ];
 
 // ============================================================================
-// HELPER FUNCTIONS
+// UNIFIED SIGNAL CALCULATION (uses the same engine as useIntradaySignal)
 // ============================================================================
-
-function calculateQuickConfidence(data: IntradayData | null): number {
-  if (!data) return 50;
-
-  const { emas, change24h, rsi, macd } = data;
-  let confidence = 50;
-
-  // EMA alignment bonus
-  if (emas.ema9 && emas.ema21 && emas.ema50) {
-    const bullish = emas.ema9 > emas.ema21 && emas.ema21 > emas.ema50;
-    const bearish = emas.ema9 < emas.ema21 && emas.ema21 < emas.ema50;
-    if (bullish || bearish) confidence += 15;
-  }
-
-  // RSI confirmation
-  if (rsi?.current !== null && rsi?.current !== undefined) {
-    if (rsi.current > 50 && rsi.current < 70) confidence += 5;
-    else if (rsi.current < 50 && rsi.current > 30) confidence += 5;
-    else if (rsi.current >= 70 || rsi.current <= 30) confidence += 8; // Extreme = strong signal
-  }
-
-  // MACD histogram confirmation
-  if (macd?.histogram !== null && macd?.histogram !== undefined) {
-    if (Math.abs(macd.histogram) > 0) confidence += 5;
-  }
-
-  // Momentum bonus
-  if (Math.abs(change24h) > 2) confidence += 5;
-
-  return Math.min(95, confidence);
-}
 
 function calculateSignalWithConfluence(
   data: IntradayData,
   timeframe: IntradayTimeframe,
-  validationData: Map<string, IntradayData | null>
+  derivativesData: any,
+  allTFData: Map<string, IntradayData | null>
 ): { direction: 'LONG' | 'SHORT' | 'NEUTRAL'; confidence: number; confluenceScore: number } {
-  const { emas } = data;
+  // Use the SAME signal engine as the main view
+  const result = calculateSignal(data, derivativesData, timeframe);
 
-  // Get base direction from EMAs
-  const direction = getDirectionFromEMAs(emas.ema9, emas.ema21, emas.ema50);
-  const alignment = getEMAAlignment(emas.ema9, emas.ema21, emas.ema50);
+  let { direction, confidence } = result;
 
-  // Base confidence
-  let confidence = calculateQuickConfidence(data);
-
-  // Get sequential adjacent TFs (previous and next in sequence)
+  // Apply multi-TF confluence using the same approach as useIntradaySignal
   const { previous, next } = getSequentialAdjacentTFs(timeframe);
-  const adjacentTFs: AllTimeframes[] = [];
-  if (previous) adjacentTFs.push(previous);
-  if (next) adjacentTFs.push(next);
+  const adjacentTFSignals: TimeframeSignal[] = [];
 
-  // Build adjacent signals for confluence
-  const adjacentSignals: TimeframeSignal[] = [];
+  [previous, next].forEach(tf => {
+    if (!tf) return;
+    const tfData = allTFData.get(tf);
+    if (!tfData) return;
 
-  adjacentTFs.forEach(tf => {
-    const tfData = validationData.get(tf);
-    if (tfData) {
-      const tfDirection = getDirectionFromEMAs(tfData.emas.ema9, tfData.emas.ema21, tfData.emas.ema50);
-      const tfAlignment = getEMAAlignment(tfData.emas.ema9, tfData.emas.ema21, tfData.emas.ema50);
+    // Use signal engine for adjacent TF too (same as main view)
+    const adjResult = calculateSignal(tfData, derivativesData, tf as IntradayTimeframe);
+    const emaAlignment = getEMAAlignment(tfData.emas.ema9, tfData.emas.ema21, tfData.emas.ema50);
 
-      adjacentSignals.push({
-        timeframe: tf,
-        direction: tfDirection,
-        confidence: calculateQuickConfidence(tfData),
-        emaAlignment: tfAlignment
-      });
-    }
+    adjacentTFSignals.push({
+      timeframe: tf,
+      direction: adjResult.direction,
+      confidence: adjResult.confidence,
+      emaAlignment
+    });
   });
 
-  // Calculate confluence if we have adjacent signals
-  let confluenceScore = 50;
+  let confluenceScore = 0;
 
-  if (adjacentSignals.length > 0 && direction !== 'NEUTRAL') {
+  if (adjacentTFSignals.length > 0 && direction !== 'NEUTRAL') {
+    const emaAlignment = getEMAAlignment(data.emas.ema9, data.emas.ema21, data.emas.ema50);
     const currentSignal: TimeframeSignal = {
       timeframe,
       direction,
       confidence,
-      emaAlignment: alignment
+      emaAlignment
     };
 
-    const result = generateMultiTFRecommendation(currentSignal, adjacentSignals);
-    confidence = result.adjustedConfidence;
-    confluenceScore = result.confluenceScore;
+    const confluenceResult = generateMultiTFRecommendation(currentSignal, adjacentTFSignals);
+    confidence = confluenceResult.adjustedConfidence;
+    confluenceScore = confluenceResult.confluenceScore;
   }
 
   return { direction, confidence, confluenceScore };
@@ -153,12 +115,9 @@ function calculateSignalWithConfluence(
 // ============================================================================
 
 export function useAllSignals(enabled: boolean = true): AllSignalsResult {
-  // Fetch derivatives data (shared across all assets)
   const { data: derivativesData, isLoading: isLoadingDerivatives } = useDerivatives();
 
-  // Fetch data for all monitored combinations
-  // Using fixed hook calls to respect React rules
-  // BTC - all timeframes
+  // BTC
   const btc1m = useIntradayData('BTC', '1m', enabled);
   const btc5m = useIntradayData('BTC', '5m', enabled);
   const btc15m = useIntradayData('BTC', '15m', enabled);
@@ -166,7 +125,7 @@ export function useAllSignals(enabled: boolean = true): AllSignalsResult {
   const btc4h = useIntradayData('BTC', '4h', enabled);
   const btc1d = useIntradayData('BTC', '1d', enabled);
 
-  // ETH - all timeframes
+  // ETH
   const eth1m = useIntradayData('ETH', '1m', enabled);
   const eth5m = useIntradayData('ETH', '5m', enabled);
   const eth15m = useIntradayData('ETH', '15m', enabled);
@@ -174,7 +133,7 @@ export function useAllSignals(enabled: boolean = true): AllSignalsResult {
   const eth4h = useIntradayData('ETH', '4h', enabled);
   const eth1d = useIntradayData('ETH', '1d', enabled);
 
-  // BNB - all timeframes
+  // BNB
   const bnb1m = useIntradayData('BNB', '1m', enabled);
   const bnb5m = useIntradayData('BNB', '5m', enabled);
   const bnb15m = useIntradayData('BNB', '15m', enabled);
@@ -182,11 +141,9 @@ export function useAllSignals(enabled: boolean = true): AllSignalsResult {
   const bnb4h = useIntradayData('BNB', '4h', enabled);
   const bnb1d = useIntradayData('BNB', '1d', enabled);
 
-  // Build data map
   const dataMap = useMemo(() => {
     const map = new Map<string, { data: IntradayData | null; isLoading: boolean }>();
 
-    // BTC - all timeframes
     map.set('BTC-1m', { data: btc1m.data ?? null, isLoading: btc1m.isLoading });
     map.set('BTC-5m', { data: btc5m.data ?? null, isLoading: btc5m.isLoading });
     map.set('BTC-15m', { data: btc15m.data ?? null, isLoading: btc15m.isLoading });
@@ -194,7 +151,6 @@ export function useAllSignals(enabled: boolean = true): AllSignalsResult {
     map.set('BTC-4h', { data: btc4h.data ?? null, isLoading: btc4h.isLoading });
     map.set('BTC-1d', { data: btc1d.data ?? null, isLoading: btc1d.isLoading });
 
-    // ETH - all timeframes
     map.set('ETH-1m', { data: eth1m.data ?? null, isLoading: eth1m.isLoading });
     map.set('ETH-5m', { data: eth5m.data ?? null, isLoading: eth5m.isLoading });
     map.set('ETH-15m', { data: eth15m.data ?? null, isLoading: eth15m.isLoading });
@@ -202,7 +158,6 @@ export function useAllSignals(enabled: boolean = true): AllSignalsResult {
     map.set('ETH-4h', { data: eth4h.data ?? null, isLoading: eth4h.isLoading });
     map.set('ETH-1d', { data: eth1d.data ?? null, isLoading: eth1d.isLoading });
 
-    // BNB - all timeframes
     map.set('BNB-1m', { data: bnb1m.data ?? null, isLoading: bnb1m.isLoading });
     map.set('BNB-5m', { data: bnb5m.data ?? null, isLoading: bnb5m.isLoading });
     map.set('BNB-15m', { data: bnb15m.data ?? null, isLoading: bnb15m.isLoading });
@@ -212,50 +167,33 @@ export function useAllSignals(enabled: boolean = true): AllSignalsResult {
 
     return map;
   }, [
-    btc1m.data, btc1m.isLoading,
-    btc5m.data, btc5m.isLoading,
-    btc15m.data, btc15m.isLoading,
-    btc1h.data, btc1h.isLoading,
-    btc4h.data, btc4h.isLoading,
-    btc1d.data, btc1d.isLoading,
-    eth1m.data, eth1m.isLoading,
-    eth5m.data, eth5m.isLoading,
-    eth15m.data, eth15m.isLoading,
-    eth1h.data, eth1h.isLoading,
-    eth4h.data, eth4h.isLoading,
-    eth1d.data, eth1d.isLoading,
-    bnb1m.data, bnb1m.isLoading,
-    bnb5m.data, bnb5m.isLoading,
-    bnb15m.data, bnb15m.isLoading,
-    bnb1h.data, bnb1h.isLoading,
-    bnb4h.data, bnb4h.isLoading,
-    bnb1d.data, bnb1d.isLoading,
+    btc1m.data, btc1m.isLoading, btc5m.data, btc5m.isLoading,
+    btc15m.data, btc15m.isLoading, btc1h.data, btc1h.isLoading,
+    btc4h.data, btc4h.isLoading, btc1d.data, btc1d.isLoading,
+    eth1m.data, eth1m.isLoading, eth5m.data, eth5m.isLoading,
+    eth15m.data, eth15m.isLoading, eth1h.data, eth1h.isLoading,
+    eth4h.data, eth4h.isLoading, eth1d.data, eth1d.isLoading,
+    bnb1m.data, bnb1m.isLoading, bnb5m.data, bnb5m.isLoading,
+    bnb15m.data, bnb15m.isLoading, bnb1h.data, bnb1h.isLoading,
+    bnb4h.data, bnb4h.isLoading, bnb1d.data, bnb1d.isLoading,
   ]);
 
-  // Build validation data map for each asset (all have all TFs now)
-  const validationDataMaps = useMemo(() => {
+  // Build per-asset TF maps for confluence lookup
+  const assetTFMaps = useMemo(() => {
     const maps: Record<IntradayAsset, Map<string, IntradayData | null>> = {
-      BTC: new Map(),
-      ETH: new Map(),
-      BNB: new Map()
+      BTC: new Map(), ETH: new Map(), BNB: new Map()
     };
-
     const allTFs = ['1m', '5m', '15m', '1h', '4h', '1d'];
-
-    // All assets now have all timeframes
     allTFs.forEach(tf => {
       maps.BTC.set(tf, dataMap.get(`BTC-${tf}`)?.data ?? null);
       maps.ETH.set(tf, dataMap.get(`ETH-${tf}`)?.data ?? null);
       maps.BNB.set(tf, dataMap.get(`BNB-${tf}`)?.data ?? null);
     });
-
     return maps;
   }, [dataMap]);
 
-  // Calculate OI change from derivatives
   const oiChange = derivativesData?.openInterest?.change24h ?? 0;
 
-  // Calculate top signals with error handling
   const topSignals = useMemo(() => {
     try {
       const signals: Array<{
@@ -276,7 +214,8 @@ export function useAllSignals(enabled: boolean = true): AllSignalsResult {
           const { direction, confidence, confluenceScore } = calculateSignalWithConfluence(
             entry.data,
             timeframe,
-            validationDataMaps[asset]
+            derivativesData,
+            assetTFMaps[asset]
           );
 
           signals.push({
@@ -296,9 +235,8 @@ export function useAllSignals(enabled: boolean = true): AllSignalsResult {
       logger.error('[useAllSignals] Error ranking signals:', error);
       return [];
     }
-  }, [dataMap, validationDataMaps, oiChange]);
+  }, [dataMap, assetTFMaps, derivativesData, oiChange]);
 
-  // Check if any data is still loading
   const isLoading = useMemo(() => {
     for (const [, entry] of dataMap) {
       if (entry.isLoading) return true;
@@ -306,17 +244,13 @@ export function useAllSignals(enabled: boolean = true): AllSignalsResult {
     return isLoadingDerivatives;
   }, [dataMap, isLoadingDerivatives]);
 
-  // Function to generate trade setup for a selected signal
   const getTradeSetup = useMemo(() => {
     return (signal: SignalScore): TradeSetup | null => {
       const key = `${signal.asset}-${signal.timeframe}`;
       const entry = dataMap.get(key);
-
       if (!entry?.data) return null;
 
       const currentPrice = entry.data.currentPrice;
-
-      // Calculate TP levels
       const tpLevels = calculateIntradayTPs(
         currentPrice,
         signal.direction,
@@ -335,9 +269,5 @@ export function useAllSignals(enabled: boolean = true): AllSignalsResult {
     };
   }, [dataMap, oiChange]);
 
-  return {
-    topSignals,
-    isLoading,
-    getTradeSetup
-  };
+  return { topSignals, isLoading, getTradeSetup };
 }
