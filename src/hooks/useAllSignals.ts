@@ -63,20 +63,32 @@ const MONITORED_COMBINATIONS: Array<{ asset: IntradayAsset; timeframe: IntradayT
 function calculateQuickConfidence(data: IntradayData | null): number {
   if (!data) return 50;
 
-  const { emas, change24h } = data;
+  const { emas, change24h, rsi, macd } = data;
   let confidence = 50;
 
   // EMA alignment bonus
   if (emas.ema9 && emas.ema21 && emas.ema50) {
     const bullish = emas.ema9 > emas.ema21 && emas.ema21 > emas.ema50;
     const bearish = emas.ema9 < emas.ema21 && emas.ema21 < emas.ema50;
-    if (bullish || bearish) confidence += 20;
+    if (bullish || bearish) confidence += 15;
+  }
+
+  // RSI confirmation
+  if (rsi?.current !== null && rsi?.current !== undefined) {
+    if (rsi.current > 50 && rsi.current < 70) confidence += 5;
+    else if (rsi.current < 50 && rsi.current > 30) confidence += 5;
+    else if (rsi.current >= 70 || rsi.current <= 30) confidence += 8; // Extreme = strong signal
+  }
+
+  // MACD histogram confirmation
+  if (macd?.histogram !== null && macd?.histogram !== undefined) {
+    if (Math.abs(macd.histogram) > 0) confidence += 5;
   }
 
   // Momentum bonus
-  if (Math.abs(change24h) > 2) confidence += 10;
+  if (Math.abs(change24h) > 2) confidence += 5;
 
-  return Math.min(90, confidence);
+  return Math.min(95, confidence);
 }
 
 function calculateSignalWithConfluence(

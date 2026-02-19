@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { EMA } from 'technicalindicators';
+import { EMA, RSI, MACD, OBV } from 'technicalindicators';
 import { useAssetTicker } from './useAssetTicker';
 import { logger } from '@/lib/logger';
 
@@ -31,6 +31,27 @@ export interface IntradayEMAs {
   ema50Values: number[];
 }
 
+export interface IntradayRSI {
+  current: number | null;    // RSI(14) current value
+  previous: number | null;   // RSI(14) previous value (for divergence)
+  values: number[];
+}
+
+export interface IntradayMACD {
+  macd: number | null;
+  signal: number | null;
+  histogram: number | null;
+  previousHistogram: number | null;  // For histogram flip detection
+}
+
+export interface IntradayVolume {
+  obv: number | null;           // On-Balance Volume (current)
+  obvPrevious: number | null;   // OBV previous (for trend)
+  volumeMA: number | null;      // 20-period volume SMA
+  currentVolume: number;        // Latest candle volume
+  volumeRatio: number | null;   // currentVolume / volumeMA (>1 = above average)
+}
+
 export interface IntradayData {
   candles: IntradayCandle[];
   currentPrice: number;
@@ -39,6 +60,9 @@ export interface IntradayData {
   low24h: number;
   volume24h: number;
   emas: IntradayEMAs;
+  rsi: IntradayRSI;
+  macd: IntradayMACD;
+  volume: IntradayVolume;
   volatility: number; // Percentage
   timestamp: number;
 }
@@ -181,6 +205,77 @@ function calculateVolatility(candles: IntradayCandle[]): number {
 }
 
 // ============================================================================
+// RSI CALCULATION
+// ============================================================================
+
+function calculateRSI(candles: IntradayCandle[]): IntradayRSI {
+  const closePrices = candles.map(c => c.close);
+  const rsiValues = RSI.calculate({ period: 14, values: closePrices });
+
+  return {
+    current: rsiValues.length > 0 ? rsiValues[rsiValues.length - 1] : null,
+    previous: rsiValues.length > 1 ? rsiValues[rsiValues.length - 2] : null,
+    values: rsiValues,
+  };
+}
+
+// ============================================================================
+// MACD CALCULATION
+// ============================================================================
+
+function calculateMACD(candles: IntradayCandle[]): IntradayMACD {
+  const closePrices = candles.map(c => c.close);
+  const macdResult = MACD.calculate({
+    values: closePrices,
+    fastPeriod: 12,
+    slowPeriod: 26,
+    signalPeriod: 9,
+    SimpleMAOscillator: false,
+    SimpleMASignal: false,
+  });
+
+  if (macdResult.length === 0) {
+    return { macd: null, signal: null, histogram: null, previousHistogram: null };
+  }
+
+  const last = macdResult[macdResult.length - 1];
+  const prev = macdResult.length > 1 ? macdResult[macdResult.length - 2] : null;
+
+  return {
+    macd: last.MACD ?? null,
+    signal: last.signal ?? null,
+    histogram: last.histogram ?? null,
+    previousHistogram: prev?.histogram ?? null,
+  };
+}
+
+// ============================================================================
+// VOLUME ANALYSIS
+// ============================================================================
+
+function calculateVolumeAnalysis(candles: IntradayCandle[]): IntradayVolume {
+  const volumes = candles.map(c => c.volume);
+  const closePrices = candles.map(c => c.close);
+  const currentVolume = volumes.length > 0 ? volumes[volumes.length - 1] : 0;
+
+  // OBV calculation
+  const obvValues = OBV.calculate({ close: closePrices, volume: volumes });
+  const obv = obvValues.length > 0 ? obvValues[obvValues.length - 1] : null;
+  const obvPrevious = obvValues.length > 1 ? obvValues[obvValues.length - 2] : null;
+
+  // Volume SMA(20)
+  let volumeMA: number | null = null;
+  if (volumes.length >= 20) {
+    const last20 = volumes.slice(-20);
+    volumeMA = last20.reduce((s, v) => s + v, 0) / 20;
+  }
+
+  const volumeRatio = volumeMA && volumeMA > 0 ? currentVolume / volumeMA : null;
+
+  return { obv, obvPrevious, volumeMA, currentVolume, volumeRatio };
+}
+
+// ============================================================================
 // MAIN HOOK
 // ============================================================================
 
@@ -203,6 +298,9 @@ export function useIntradayData(
       const candles = await fetchKlines(asset, timeframe);
 
       const emas = calculateEMAs(candles);
+      const rsi = calculateRSI(candles);
+      const macd = calculateMACD(candles);
+      const volumeAnalysis = calculateVolumeAnalysis(candles);
       const volatility = calculateVolatility(candles);
 
       // Use shared ticker data, fall back to last candle close
@@ -217,6 +315,8 @@ export function useIntradayData(
         change: `${change24h.toFixed(2)}%`,
         volatility: `${volatility.toFixed(2)}%`,
         ema9: emas.ema9?.toFixed(2),
+        rsi: rsi.current?.toFixed(1),
+        macdHist: macd.histogram?.toFixed(2),
       });
 
       return {
@@ -227,6 +327,9 @@ export function useIntradayData(
         low24h,
         volume24h,
         emas,
+        rsi,
+        macd,
+        volume: volumeAnalysis,
         volatility,
         timestamp: Date.now()
       };
