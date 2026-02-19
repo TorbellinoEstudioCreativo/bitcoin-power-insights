@@ -1,8 +1,10 @@
-import { ChartLine, Clock } from "lucide-react";
+import { ChartLine, Clock, Zap } from "lucide-react";
+
+export type TradingTabId = 'powerlaw' | 'intraday' | 'scalping';
 
 interface TradingTabsProps {
-  activeTab: 'powerlaw' | 'intraday';
-  onTabChange: (tab: 'powerlaw' | 'intraday') => void;
+  activeTab: TradingTabId;
+  onTabChange: (tab: TradingTabId) => void;
 }
 
 export function TradingTabs({ activeTab, onTabChange }: TradingTabsProps) {
@@ -19,7 +21,7 @@ export function TradingTabs({ activeTab, onTabChange }: TradingTabsProps) {
         <ChartLine className="w-4 h-4" />
         <span>Power Law 1D</span>
       </button>
-      
+
       <button
         onClick={() => onTabChange('intraday')}
         className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -30,6 +32,18 @@ export function TradingTabs({ activeTab, onTabChange }: TradingTabsProps) {
       >
         <Clock className="w-4 h-4" />
         <span>Intradía</span>
+      </button>
+
+      <button
+        onClick={() => onTabChange('scalping')}
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+          activeTab === 'scalping'
+            ? 'bg-yellow-500/90 text-yellow-950 shadow-sm'
+            : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+        }`}
+      >
+        <Zap className="w-4 h-4" />
+        <span>Scalping</span>
       </button>
     </div>
   );

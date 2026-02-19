@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 interface HeaderProps {
-  activeTab?: 'powerlaw' | 'intraday';
+  activeTab?: 'powerlaw' | 'intraday' | 'scalping';
   alerts?: Alert[];
   activeAlertsCount?: number;
   canAddMore?: boolean;
@@ -52,8 +52,8 @@ export function Header({
   const { theme, setTheme } = useTheme();
   
   // Dynamic title based on active tab
-  const titleKey = activeTab === 'intraday' ? 'titleIntraday' : 'title';
-  const subtitleKey = activeTab === 'intraday' ? 'subtitleIntraday' : 'subtitle';
+  const titleKey = activeTab === 'intraday' || activeTab === 'scalping' ? 'titleIntraday' : 'title';
+  const subtitleKey = activeTab === 'intraday' || activeTab === 'scalping' ? 'subtitleIntraday' : 'subtitle';
 
   return (
     <>

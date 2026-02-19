@@ -5,8 +5,9 @@ import { RightSidebar } from "@/components/trading/RightSidebar";
 import { MainContent } from "@/components/trading/MainContent";
 import { Footer } from "@/components/trading/Footer";
 import { PortfolioInput } from "@/components/trading/PortfolioInput";
-import { TradingTabs } from "@/components/layout/TradingTabs";
+import { TradingTabs, type TradingTabId } from "@/components/layout/TradingTabs";
 import { IntradayView } from "@/pages/IntradayView";
+import { ScalpingView } from "@/pages/ScalpingView";
 import { usePowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
 import { useDebouncedValue } from "@/hooks/useDebounce";
 import { useBitcoinPrice } from "@/hooks/useBitcoinPrice";
@@ -15,7 +16,7 @@ import { BTC_PRICE_FALLBACK } from "@/lib/constants";
 
 const Index = () => {
   // Tab state
-  const [activeTab, setActiveTab] = useState<'powerlaw' | 'intraday'>('powerlaw');
+  const [activeTab, setActiveTab] = useState<TradingTabId>('powerlaw');
   
   // Portfolio value state with localStorage
   const [portfolioValue, setPortfolioValue] = useState(() => {
@@ -79,8 +80,8 @@ const Index = () => {
       <div className="flex flex-1 overflow-hidden">
         {activeTab === 'powerlaw' ? (
           <div className="flex flex-col flex-1">
-            <PortfolioInput 
-              value={portfolioValue} 
+            <PortfolioInput
+              value={portfolioValue}
               onChange={setPortfolioValue}
               interestRate={interestRate}
               onInterestRateChange={setInterestRate}
@@ -91,14 +92,14 @@ const Index = () => {
               <div className="hidden lg:block">
                 <LeftSidebar />
               </div>
-              
+
               {/* Main Content */}
               <MainContent analysis={analysis} btcPrice={btcPrice} interestRate={interestRate} />
-              
+
               {/* Right Sidebar - hidden on mobile/tablet, shown on xl+ */}
               <div className="hidden xl:block">
-                <RightSidebar 
-                  analysis={analysis} 
+                <RightSidebar
+                  analysis={analysis}
                   priceData={priceData}
                   isPriceError={isPriceError}
                   dataUpdatedAt={dataUpdatedAt}
@@ -106,9 +107,13 @@ const Index = () => {
               </div>
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'intraday' ? (
           <div className="flex-1 overflow-auto">
             <IntradayView enabled={activeTab === 'intraday'} />
+          </div>
+        ) : (
+          <div className="flex-1 overflow-auto">
+            <ScalpingView enabled={activeTab === 'scalping'} />
           </div>
         )}
       </div>
