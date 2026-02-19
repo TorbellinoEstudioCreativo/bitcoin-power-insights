@@ -8,6 +8,7 @@ import { PowerLawChart } from "./PowerLawChart";
 import { SupportResistancePanel } from "./SupportResistancePanel";
 import { TradingPanel } from "./TradingPanel";
 import { useTechnicalAnalysis } from "@/hooks/useTechnicalAnalysis";
+import { usePowerLawHistory } from "@/hooks/usePowerLawHistory";
 interface MainContentProps {
   analysis: PowerLawAnalysis;
   btcPrice: number;
@@ -19,6 +20,9 @@ export function MainContent({ analysis, btcPrice, interestRate = 5.37 }: MainCon
   
   // Get technical analysis for support/resistance
   const { soportes, resistencias } = useTechnicalAnalysis(btcPrice, analysis);
+
+  // Get real historical daily prices for PowerLaw chart
+  const { dailyPrices } = usePowerLawHistory();
 
   // Auto-select recommended strategy when ratio changes significantly
   useEffect(() => {
@@ -50,7 +54,7 @@ export function MainContent({ analysis, btcPrice, interestRate = 5.37 }: MainCon
       {/* Power Law Chart */}
       <Card className="p-6 mb-6">
         <h2 className="text-xl font-bold text-foreground mb-4">Gráfico Power Law</h2>
-        <PowerLawChart analysis={analysis} btcPrice={btcPrice} />
+        <PowerLawChart analysis={analysis} btcPrice={btcPrice} dailyPrices={dailyPrices} />
       </Card>
       
       {/* Support & Resistance Panel removed - info already in Trading Panel */}

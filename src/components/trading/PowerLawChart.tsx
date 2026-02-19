@@ -11,11 +11,13 @@ import {
   ReferenceLine,
 } from "recharts";
 import { PowerLawAnalysis } from "@/hooks/usePowerLawAnalysis";
+import { DailyPrice } from "@/hooks/usePowerLawHistory";
 import { GENESIS_DATE } from "@/lib/constants";
 
 interface PowerLawChartProps {
   analysis: PowerLawAnalysis;
   btcPrice: number;
+  dailyPrices?: DailyPrice[];
 }
 
 type Timeframe = '15d' | '30d' | '3m' | '1y' | 'all';
@@ -60,10 +62,21 @@ const historicalPrices: Record<number, number> = {
   2022: 28000, 2023: 37000, 2024: 72000, 2025: 93000
 };
 
-export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
+export function PowerLawChart({ analysis, btcPrice, dailyPrices = [] }: PowerLawChartProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>('all');
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
+
+  // Build a lookup map from daily prices: "YYYY-MM-DD" -> close price
+  const priceByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const dp of dailyPrices) {
+      const d = dp.date;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      map.set(key, dp.close);
+    }
+    return map;
+  }, [dailyPrices]);
 
   const generateChartData = (tf: Timeframe): ChartDataPoint[] => {
     const data: ChartDataPoint[] = [];
@@ -150,111 +163,93 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
         }
       });
     } else if (tf === '15d' || tf === '30d') {
-      // Short term: DAILY data with seeded random for consistency
+      // Short term: DAILY data from real Binance prices
       const days = tf === '15d' ? 15 : 30;
       const startDate = new Date(currentDate);
       startDate.setDate(startDate.getDate() - days);
-      
+
       for (let i = 0; i <= days; i++) {
         const date = new Date(startDate);
         date.setDate(date.getDate() + i);
-        
+
         const daysSince = Math.floor((date.getTime() - GENESIS_DATE.getTime()) / 86400000);
         const yearsSince = daysSince / 365.25;
         const modelo = calcularPrecioPowerLaw(yearsSince);
-        
+
         const isToday = date.toDateString() === currentDate.toDateString();
-        const ratioActual = btcPrice / analysis.precioModelo;
-        
-        // Seeded random for consistent volatility based on date
-        const seed = (date.getFullYear() * 1000 + date.getMonth() * 100 + date.getDate()) % 997;
-        const variation = ((seed / 997) - 0.5) * 0.12; // 12% max variation for volatility
-        const precioReal = isToday 
-          ? btcPrice 
-          : modelo * ratioActual * (1 + variation);
-        
+        const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const realPrice = isToday ? btcPrice : priceByDate.get(dateKey);
+
         // Show label every few days
         const labelInterval = tf === '15d' ? 2 : 4;
         const showLabel = i % labelInterval === 0 || isToday;
-        
+
         data.push({
           date: showLabel ? date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '',
           modelo: Math.round(modelo),
           techo: Math.round(modelo * 3.0),
           piso: Math.round(modelo * 0.5),
-          precioReal: Math.round(precioReal),
+          precioReal: realPrice ? Math.round(realPrice) : null,
           isToday
         });
       }
     } else if (tf === '3m') {
-      // 3 months: DAILY data for better volatility visibility
+      // 3 months: DAILY data from real Binance prices
       const totalDays = 90;
       const startDate = new Date(currentDate);
       startDate.setDate(startDate.getDate() - totalDays);
-      
+
       for (let i = 0; i <= totalDays; i++) {
         const date = new Date(startDate);
         date.setDate(date.getDate() + i);
-        
+
         const daysSince = Math.floor((date.getTime() - GENESIS_DATE.getTime()) / 86400000);
         const yearsSince = daysSince / 365.25;
         const modelo = calcularPrecioPowerLaw(yearsSince);
-        
+
         const isToday = i === totalDays;
-        const ratioActual = btcPrice / analysis.precioModelo;
-        
-        // Seeded random for consistent volatility
-        const seed = (date.getFullYear() * 1000 + date.getMonth() * 100 + date.getDate()) % 997;
-        const variation = ((seed / 997) - 0.5) * 0.15; // 15% max variation
-        const precioReal = isToday 
-          ? btcPrice 
-          : modelo * ratioActual * (1 + variation);
-        
+        const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const realPrice = isToday ? btcPrice : priceByDate.get(dateKey);
+
         // Show label weekly (every 7 days)
         const showLabel = i % 7 === 0;
-        
+
         data.push({
           date: showLabel ? date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '',
           modelo: Math.round(modelo),
           techo: Math.round(modelo * 3.0),
           piso: Math.round(modelo * 0.5),
-          precioReal: Math.round(precioReal),
+          precioReal: realPrice ? Math.round(realPrice) : null,
           isToday
         });
       }
     } else if (tf === '1y') {
-      // 1 year: DAILY data for maximum granularity (365 points)
-      let lastMonth = -1; // Track month changes for labels
-      
+      // 1 year: DAILY data from real Binance prices
+      let lastMonth = -1;
+
       for (let i = 365; i >= 0; i--) {
         const date = new Date(currentDate);
         date.setDate(date.getDate() - i);
-        
+
         const daysSince = Math.floor((date.getTime() - GENESIS_DATE.getTime()) / 86400000);
         const yearsSince = daysSince / 365.25;
         const modelo = calcularPrecioPowerLaw(yearsSince);
-        
+
         const isToday = i === 0;
-        const ratioActual = btcPrice / analysis.precioModelo;
-        
-        // Seeded random for consistent volatility based on date
-        const seed = (date.getFullYear() * 1000 + date.getMonth() * 100 + date.getDate()) % 997;
-        const variation = ((seed / 997) - 0.5) * 0.15; // 15% max variation for realism
-        const precioReal = isToday 
-          ? btcPrice 
-          : modelo * ratioActual * (1 + variation);
-        
-        // Show label when month changes (not just first day)
+        const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const realPrice = isToday ? btcPrice : priceByDate.get(dateKey);
+
+        // Show label when month changes
         const currentMonth = date.getMonth();
         const showMonthLabel = currentMonth !== lastMonth;
         lastMonth = currentMonth;
-        
+
         data.push({
           date: showMonthLabel ? date.toLocaleDateString('es-MX', { month: 'short' }) : '',
           modelo: Math.round(modelo),
           techo: Math.round(modelo * 3.0),
           piso: Math.round(modelo * 0.5),
-          precioReal: Math.round(precioReal),
+          precioReal: realPrice ? Math.round(realPrice) : null,
           isToday
         });
       }
@@ -263,7 +258,7 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
     return data;
   };
 
-  const chartData = useMemo(() => generateChartData(timeframe), [timeframe, analysis.precioModelo, btcPrice]);
+  const chartData = useMemo(() => generateChartData(timeframe), [timeframe, analysis.precioModelo, btcPrice, priceByDate]);
 
   const timeframeLabels: Record<Timeframe, string> = {
     '15d': '15 días',
@@ -445,11 +440,11 @@ export function PowerLawChart({ analysis, btcPrice }: PowerLawChartProps) {
       </div>
 
       {/* Informative Note for short-term views */}
-      {(timeframe === '15d' || timeframe === '30d' || timeframe === '3m') && (
+      {(timeframe === '15d' || timeframe === '30d' || timeframe === '3m' || timeframe === '1y') && (
         <div className="mt-4 p-3 bg-info/10 rounded-lg border border-info/30">
           <p className="text-sm text-info">
-            <strong>Vista de corto plazo:</strong> Analiza el precio modelo día a día 
-            para identificar oportunidades de compra cuando el precio real esté por debajo del modelo.
+            <strong>Datos reales de Binance (BTCUSDT):</strong> Precio de cierre diario real.
+            Identifica oportunidades cuando el precio real esté por debajo del modelo.
           </p>
         </div>
       )}
