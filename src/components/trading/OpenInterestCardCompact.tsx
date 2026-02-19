@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Activity, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { logger } from "@/lib/logger";
 import { Card } from "./Card";
 import { InfoTooltip } from "./InfoTooltip";
 import { OpenInterestData, formatOpenInterest } from "@/lib/derivatives";
@@ -13,7 +14,7 @@ export function OpenInterestCardCompact({ data, isLoading }: OpenInterestCardCom
   // Debug: Log cuando cambian los datos
   useEffect(() => {
     if (data) {
-      console.log('[OpenInterestCard] Data received:', {
+      logger.log('[OpenInterestCard] Data received:', {
         value: formatOpenInterest(data.openInterestUsd),
         change24h: `${data.change24h.toFixed(2)}%`,
         signal: data.signal

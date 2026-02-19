@@ -1,6 +1,7 @@
 // Technical Analysis utilities for trading
 import { EMA } from 'technicalindicators';
 import { CandleData, getOHLCTimeframe } from './historicalData';
+import { logger } from '@/lib/logger';
 
 export interface NivelSoporte {
   precio: number;
@@ -29,7 +30,7 @@ export const calcularEMA = (precios: number[], periodo: number): number => {
   if (precios.length === 0) return 0;
   
   if (precios.length < periodo) {
-    console.warn(`[EMA] Not enough data for EMA${periodo} (have ${precios.length}, need ${periodo})`);
+    logger.warn(`[EMA] Not enough data for EMA${periodo} (have ${precios.length}, need ${periodo})`);
     return precios[precios.length - 1] || 0;
   }
   

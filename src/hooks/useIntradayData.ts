@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { EMA } from 'technicalindicators';
+import { useAssetTicker } from './useAssetTicker';
+import { logger } from '@/lib/logger';
 
 // ============================================================================
 // TYPES
@@ -46,7 +48,6 @@ export interface IntradayData {
 // ============================================================================
 
 const BINANCE_API = 'https://api.binance.com';
-const REFETCH_INTERVAL = 30 * 1000; // 30 seconds
 
 const ASSET_SYMBOLS: Record<IntradayAsset, string> = {
   BTC: 'BTCUSDT',
@@ -74,6 +75,17 @@ const CANDLE_LIMITS: Record<AllTimeframes, number> = {
   '1w': 52
 };
 
+// Step 2: Staggered refetch intervals per timeframe
+const REFETCH_INTERVALS: Record<AllTimeframes, number> = {
+  '1m': 15_000,   // 15s
+  '5m': 30_000,   // 30s
+  '15m': 60_000,  // 1min
+  '1h': 120_000,  // 2min
+  '4h': 300_000,  // 5min
+  '1d': 600_000,  // 10min
+  '1w': 600_000,  // 10min
+};
+
 // ============================================================================
 // FETCH FUNCTIONS
 // ============================================================================
@@ -86,18 +98,18 @@ async function fetchKlines(
   const symbol = ASSET_SYMBOLS[asset];
   const interval = TIMEFRAME_INTERVALS[timeframe];
   const candleLimit = limit ?? CANDLE_LIMITS[timeframe];
-  
-  console.log(`[useIntradayData] Fetching ${asset} ${timeframe} klines (${candleLimit})...`);
-  
+
+  logger.log(`[useIntradayData] Fetching ${asset} ${timeframe} klines (${candleLimit})...`);
+
   const url = `${BINANCE_API}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${candleLimit}`;
   const response = await fetch(url);
-  
+
   if (!response.ok) {
     throw new Error(`Binance API error: ${response.status}`);
   }
-  
+
   const data = await response.json();
-  
+
   const candles: IntradayCandle[] = data.map((kline: any[]) => ({
     timestamp: kline[0],
     open: parseFloat(kline[1]),
@@ -106,35 +118,9 @@ async function fetchKlines(
     close: parseFloat(kline[4]),
     volume: parseFloat(kline[5])
   }));
-  
-  console.log(`[useIntradayData] ✅ Retrieved ${candles.length} candles`);
-  return candles;
-}
 
-async function fetch24hTicker(asset: IntradayAsset): Promise<{
-  price: number;
-  change24h: number;
-  high24h: number;
-  low24h: number;
-  volume24h: number;
-}> {
-  const symbol = ASSET_SYMBOLS[asset];
-  const url = `${BINANCE_API}/api/v3/ticker/24hr?symbol=${symbol}`;
-  
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Binance API error: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  
-  return {
-    price: parseFloat(data.lastPrice),
-    change24h: parseFloat(data.priceChangePercent),
-    high24h: parseFloat(data.highPrice),
-    low24h: parseFloat(data.lowPrice),
-    volume24h: parseFloat(data.volume)
-  };
+  logger.log(`[useIntradayData] Retrieved ${candles.length} candles`);
+  return candles;
 }
 
 // ============================================================================
@@ -143,17 +129,17 @@ async function fetch24hTicker(asset: IntradayAsset): Promise<{
 
 function calculateEMAs(candles: IntradayCandle[]): IntradayEMAs {
   const closePrices = candles.map(c => c.close);
-  
+
   const ema9Values = EMA.calculate({ period: 9, values: closePrices });
   const ema21Values = EMA.calculate({ period: 21, values: closePrices });
   const ema50Values = EMA.calculate({ period: 50, values: closePrices });
-  
+
   // Pad arrays to match candle length
   const padArray = (arr: number[], targetLength: number): number[] => {
     const padding = new Array(targetLength - arr.length).fill(NaN);
     return [...padding, ...arr];
   };
-  
+
   return {
     ema9: ema9Values.length > 0 ? ema9Values[ema9Values.length - 1] : null,
     ema21: ema21Values.length > 0 ? ema21Values[ema21Values.length - 1] : null,
@@ -170,26 +156,26 @@ function calculateEMAs(candles: IntradayCandle[]): IntradayEMAs {
 
 function calculateVolatility(candles: IntradayCandle[]): number {
   if (candles.length < 2) return 0;
-  
+
   // Calculate average true range (ATR) as volatility proxy
   let totalRange = 0;
   for (let i = 1; i < candles.length; i++) {
     const high = candles[i].high;
     const low = candles[i].low;
     const prevClose = candles[i - 1].close;
-    
+
     const trueRange = Math.max(
       high - low,
       Math.abs(high - prevClose),
       Math.abs(low - prevClose)
     );
-    
+
     totalRange += trueRange;
   }
-  
+
   const avgTrueRange = totalRange / (candles.length - 1);
   const currentPrice = candles[candles.length - 1].close;
-  
+
   // Return as percentage
   return (avgTrueRange / currentPrice) * 100;
 }
@@ -200,44 +186,54 @@ function calculateVolatility(candles: IntradayCandle[]): number {
 
 export function useIntradayData(
   asset: IntradayAsset = 'BTC',
-  timeframe: AllTimeframes = '15m'
+  timeframe: AllTimeframes = '15m',
+  enabled: boolean = true
 ) {
+  // Step 1: Use centralized ticker (shared across timeframes for the same asset)
+  const { data: tickerData } = useAssetTicker(asset, enabled);
+
+  const refetchInterval = REFETCH_INTERVALS[timeframe];
+
   const queryResult = useQuery<IntradayData>({
     queryKey: ['intraday-data', asset, timeframe],
     queryFn: async () => {
-      console.log(`[useIntradayData] Starting fetch for ${asset} ${timeframe}...`);
-      
-      const [candles, ticker] = await Promise.all([
-        fetchKlines(asset, timeframe),
-        fetch24hTicker(asset)
-      ]);
-      
+      logger.log(`[useIntradayData] Starting fetch for ${asset} ${timeframe}...`);
+
+      // Only fetch klines - ticker comes from useAssetTicker
+      const candles = await fetchKlines(asset, timeframe);
+
       const emas = calculateEMAs(candles);
       const volatility = calculateVolatility(candles);
-      
-      console.log(`[useIntradayData] ✅ Data ready:`, {
-        price: ticker.price,
-        change: `${ticker.change24h.toFixed(2)}%`,
+
+      // Use shared ticker data, fall back to last candle close
+      const price = tickerData?.price ?? candles[candles.length - 1]?.close ?? 0;
+      const change24h = tickerData?.change24h ?? 0;
+      const high24h = tickerData?.high24h ?? 0;
+      const low24h = tickerData?.low24h ?? 0;
+      const volume24h = tickerData?.volume24h ?? 0;
+
+      logger.log(`[useIntradayData] Data ready:`, {
+        price,
+        change: `${change24h.toFixed(2)}%`,
         volatility: `${volatility.toFixed(2)}%`,
         ema9: emas.ema9?.toFixed(2),
-        ema21: emas.ema21?.toFixed(2),
-        ema50: emas.ema50?.toFixed(2)
       });
-      
+
       return {
         candles,
-        currentPrice: ticker.price,
-        change24h: ticker.change24h,
-        high24h: ticker.high24h,
-        low24h: ticker.low24h,
-        volume24h: ticker.volume24h,
+        currentPrice: price,
+        change24h,
+        high24h,
+        low24h,
+        volume24h,
         emas,
         volatility,
         timestamp: Date.now()
       };
     },
-    staleTime: REFETCH_INTERVAL,
-    refetchInterval: REFETCH_INTERVAL,
+    staleTime: refetchInterval,
+    refetchInterval,
+    enabled,
     retry: 2,
     refetchOnWindowFocus: false
   });
@@ -245,28 +241,28 @@ export function useIntradayData(
   // Memoized analysis
   const analysis = useMemo(() => {
     if (!queryResult.data) return null;
-    
+
     const { emas, currentPrice, volatility } = queryResult.data;
-    
+
     // Trend analysis based on EMAs
-    const isBullish = 
-      emas.ema9 !== null && 
-      emas.ema21 !== null && 
+    const isBullish =
+      emas.ema9 !== null &&
+      emas.ema21 !== null &&
       emas.ema50 !== null &&
-      emas.ema9 > emas.ema21 && 
+      emas.ema9 > emas.ema21 &&
       emas.ema21 > emas.ema50;
-    
-    const isBearish = 
-      emas.ema9 !== null && 
-      emas.ema21 !== null && 
+
+    const isBearish =
+      emas.ema9 !== null &&
+      emas.ema21 !== null &&
       emas.ema50 !== null &&
-      emas.ema9 < emas.ema21 && 
+      emas.ema9 < emas.ema21 &&
       emas.ema21 < emas.ema50;
-    
+
     // Volatility level
-    const volatilityLevel: 'Alta' | 'Media' | 'Baja' = 
+    const volatilityLevel: 'Alta' | 'Media' | 'Baja' =
       volatility > 1.5 ? 'Alta' : volatility > 0.8 ? 'Media' : 'Baja';
-    
+
     return {
       trend: isBullish ? 'bullish' : isBearish ? 'bearish' : 'neutral',
       volatilityLevel,

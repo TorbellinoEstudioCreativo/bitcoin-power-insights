@@ -2,12 +2,13 @@ import { useMemo } from 'react';
 import { IntradayData, IntradayTimeframe, AllTimeframes } from './useIntradayData';
 import { DerivativesData } from '@/lib/derivatives';
 import { calculateIntradayTPs, IntradayTPLevels } from '@/lib/intradayCalculations';
-import { 
-  generateMultiTFRecommendation, 
-  getDirectionFromEMAs, 
+import { logger } from '@/lib/logger';
+import {
+  generateMultiTFRecommendation,
+  getDirectionFromEMAs,
   getEMAAlignment,
   getSequentialAdjacentTFs,
-  TimeframeSignal 
+  TimeframeSignal
 } from '@/lib/multiTimeframeAnalysis';
 
 // ============================================================================
@@ -76,7 +77,7 @@ export function useIntradaySignal(
   return useMemo(() => {
     if (!intradayData) return null;
 
-    console.log('[useIntradaySignal] Calculating signal for timeframe:', timeframe);
+    logger.log('[useIntradaySignal] Calculating signal for timeframe:', timeframe);
 
     const { currentPrice, emas, change24h, volatility, candles } = intradayData;
     const factors: SignalFactor[] = [];
@@ -89,7 +90,7 @@ export function useIntradaySignal(
     if (emas.ema9 !== null && emas.ema21 !== null && emas.ema50 !== null) {
       const perfectBullish = emas.ema9 > emas.ema21 && emas.ema21 > emas.ema50;
       const perfectBearish = emas.ema9 < emas.ema21 && emas.ema21 < emas.ema50;
-      
+
       if (perfectBullish) {
         factors.push({ label: 'EMAs alineadas alcistas (9>21>50)', positive: true, weight: 25 });
         bullishScore += 25;
@@ -107,7 +108,7 @@ export function useIntradaySignal(
     if (emas.ema9 !== null) {
       const aboveEma9 = currentPrice > emas.ema9;
       const distancePercent = Math.abs((currentPrice - emas.ema9) / emas.ema9) * 100;
-      
+
       if (aboveEma9) {
         factors.push({ label: `Precio sobre EMA9 (+${distancePercent.toFixed(1)}%)`, positive: true, weight: 15 });
         bullishScore += 15;
@@ -152,7 +153,7 @@ export function useIntradaySignal(
     // =========================================================================
     if (derivativesData) {
       const { fundingRate, openInterest } = derivativesData;
-      
+
       // Funding Rate Analysis
       const fundingPercent = fundingRate.fundingRatePercent;
       if (fundingPercent > 0.05) {
@@ -165,7 +166,7 @@ export function useIntradaySignal(
         factors.push({ label: 'Funding neutral', positive: true, weight: 5 });
         bullishScore += 5;
       }
-      
+
       // Open Interest Analysis
       const oiChange = openInterest.change24h;
       if (oiChange > 5 && change24h > 0) {
@@ -185,10 +186,10 @@ export function useIntradaySignal(
     // CALCULATE FINAL SIGNAL
     // =========================================================================
     const netScore = bullishScore - bearishScore;
-    
+
     let direction: SignalDirection;
     let confidence: number;
-    
+
     if (netScore > 15) {
       direction = 'LONG';
       confidence = Math.min(95, 50 + netScore);
@@ -201,14 +202,14 @@ export function useIntradaySignal(
     }
 
     // =========================================================================
-    // CALCULATE DYNAMIC TRADING LEVELS (NEW)
+    // CALCULATE DYNAMIC TRADING LEVELS
     // =========================================================================
     const candleData = candles?.map(c => ({
       high: c.high,
       low: c.low,
       close: c.close
     }));
-    
+
     const tpLevels: IntradayTPLevels = calculateIntradayTPs(
       currentPrice,
       direction,
@@ -227,11 +228,11 @@ export function useIntradaySignal(
 
     if (adjacentData && adjacentData.signals.length > 0) {
       const adjacentTFSignals: TimeframeSignal[] = [];
-      
+
       // Get the sequential adjacent TFs for proper filtering
       const { previous, next } = getSequentialAdjacentTFs(timeframe);
       const relevantTFs = [previous, next].filter(Boolean);
-      
+
       // Build signals from adjacent timeframes (only sequential ones)
       adjacentData.signals.forEach(({ timeframe: tfName, data }) => {
         // Only include signals from sequential adjacent TFs
@@ -239,7 +240,7 @@ export function useIntradaySignal(
           const tfEmas = data.emas;
           const tfDirection = getDirectionFromEMAs(tfEmas.ema9, tfEmas.ema21, tfEmas.ema50);
           const tfAlignment = getEMAAlignment(tfEmas.ema9, tfEmas.ema21, tfEmas.ema50);
-          
+
           // Calculate confidence based on EMA alignment and momentum
           let tfConfidence = 50;
           if (tfAlignment === 'bullish' || tfAlignment === 'bearish') {
@@ -249,14 +250,14 @@ export function useIntradaySignal(
             if (momentum > 2) tfConfidence += 15;
             else if (momentum > 1) tfConfidence += 10;
           }
-          
+
           adjacentTFSignals.push({
             timeframe: tfName,
             direction: tfDirection,
             confidence: Math.min(90, tfConfidence),
             emaAlignment: tfAlignment
           });
-          
+
           // Store for UI display
           if (tfName === previous) {
             adjacentSignals = {
@@ -279,7 +280,7 @@ export function useIntradaySignal(
           }
         }
       });
-      
+
       // Apply confluence analysis if we have adjacent signals
       if (adjacentTFSignals.length > 0) {
         const currentTFSignal: TimeframeSignal = {
@@ -288,19 +289,18 @@ export function useIntradaySignal(
           confidence,
           emaAlignment: getEMAAlignment(emas.ema9, emas.ema21, emas.ema50)
         };
-        
+
         const confluenceResult = generateMultiTFRecommendation(currentTFSignal, adjacentTFSignals);
         confluenceScore = confluenceResult.confluenceScore;
         adjustedConfidence = confluenceResult.adjustedConfidence;
         multiTFRecommendation = confluenceResult.recommendation;
         multiTFWarnings = confluenceResult.warnings;
-        
-        console.log('[useIntradaySignal] 📊 Multi-TF Confluence:', {
+
+        logger.log('[useIntradaySignal] Multi-TF Confluence:', {
           original: `${confidence.toFixed(0)}%`,
           adjusted: `${adjustedConfidence}%`,
           confluenceScore: `${confluenceScore}%`,
           recommendation: multiTFRecommendation,
-          adjacentTFs: adjacentTFSignals.map(s => `${s.timeframe}: ${s.direction} (${s.confidence}%)`)
         });
       }
     }
@@ -330,19 +330,12 @@ export function useIntradaySignal(
       adjacentSignals
     };
 
-    console.log(`[useIntradaySignal] ✅ Signal: ${direction} (${signal.confidence.toFixed(0)}% confidence)`, {
+    logger.log(`[useIntradaySignal] Signal: ${direction} (${signal.confidence.toFixed(0)}% confidence)`, {
       bullishScore,
       bearishScore,
       netScore,
       factors: factors.length,
       timeframe,
-      tpLevels: {
-        tp1: `${tpLevels.tp1Percent.toFixed(2)}%`,
-        tp2: `${tpLevels.tp2Percent.toFixed(2)}%`,
-        tp3: `${tpLevels.tp3Percent.toFixed(2)}%`,
-        basedOnATR: tpLevels.basedOnATR
-      },
-      confluence: confluenceScore !== undefined ? `${confluenceScore.toFixed(0)}%` : 'N/A'
     });
 
     return signal;

@@ -1,4 +1,5 @@
 import type { IntradayAsset, IntradayTimeframe } from '@/hooks/useIntradayData';
+import { logger } from '@/lib/logger';
 
 // ============================================================================
 // TYPES
@@ -213,24 +214,24 @@ export function generateTradeSetup(
 ): TradeSetup | null {
   // Validate critical inputs
   if (!currentPrice || currentPrice <= 0) {
-    console.warn('[TradeSetup] Invalid current price:', currentPrice);
+    logger.warn('[TradeSetup] Invalid current price:', currentPrice);
     return null;
   }
   
   if (!slPrice || slPrice <= 0) {
-    console.warn('[TradeSetup] Invalid SL price:', slPrice);
+    logger.warn('[TradeSetup] Invalid SL price:', slPrice);
     return null;
   }
   
   if (!tpPrices || tpPrices.length === 0) {
-    console.warn('[TradeSetup] No TP prices provided');
+    logger.warn('[TradeSetup] No TP prices provided');
     return null;
   }
   
   // Filter out invalid TP prices
   const validTPs = tpPrices.filter(p => p > 0);
   if (validTPs.length === 0) {
-    console.warn('[TradeSetup] All TP prices invalid');
+    logger.warn('[TradeSetup] All TP prices invalid');
     return null;
   }
 
@@ -246,7 +247,7 @@ export function generateTradeSetup(
   
   // Protect against division by zero
   if (slDistance === 0) {
-    console.warn('[TradeSetup] SL distance is zero');
+    logger.warn('[TradeSetup] SL distance is zero');
     return null;
   }
   

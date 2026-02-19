@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { playAlertSound, getSoundTypeForAlert } from "@/lib/alertSounds";
+import { logger } from '@/lib/logger';
 
 export type AlertType = 'price_target' | 'stop_loss' | 'margin_call' | 'cycle_bottom' | 'cycle_top' | 'golden_cross' | 'death_cross' | 'corridor_breach';
 export type AlertDirection = 'above' | 'below';
@@ -39,7 +40,7 @@ function loadFromStorage(): AlertsState {
       return JSON.parse(stored);
     }
   } catch (e) {
-    console.error('Error loading alerts from localStorage:', e);
+    logger.error('Error loading alerts from localStorage:', e);
   }
   return defaultState;
 }
@@ -48,7 +49,7 @@ function saveToStorage(state: AlertsState): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (e) {
-    console.error('Error saving alerts to localStorage:', e);
+    logger.error('Error saving alerts to localStorage:', e);
   }
 }
 

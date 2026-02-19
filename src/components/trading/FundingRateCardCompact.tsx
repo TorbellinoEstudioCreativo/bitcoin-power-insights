@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Clock, AlertTriangle } from "lucide-react";
+import { logger } from "@/lib/logger";
 import { Card } from "./Card";
 import { Badge } from "./Badge";
 import { InfoTooltip } from "./InfoTooltip";
@@ -19,7 +20,7 @@ export function FundingRateCardCompact({ data, isLoading }: FundingRateCardCompa
   // Debug: Log cuando cambian los datos
   useEffect(() => {
     if (data) {
-      console.log('[FundingRateCard] Data received:', {
+      logger.log('[FundingRateCard] Data received:', {
         rate: formatFundingRate(data.fundingRatePercent),
         level: data.level,
         nextFunding: new Date(data.nextFundingTime).toLocaleString()

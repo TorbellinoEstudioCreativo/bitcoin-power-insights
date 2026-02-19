@@ -1,4 +1,5 @@
 // Historical Data utilities - Primarily uses Binance API
+import { logger } from '@/lib/logger';
 
 export interface CandleData {
   timestamp: number;
@@ -57,11 +58,11 @@ export async function fetchHistoricalPrices(): Promise<HistoricalDataResult> {
   // Check cache first
   const cached = getCachedData<HistoricalDataResult>(CACHE_KEY_PRICES);
   if (cached) {
-    console.log('[HistoricalData] Using cached historical prices');
+    logger.log('[HistoricalData] Using cached historical prices');
     return cached;
   }
   
-  console.log('[HistoricalData] Fetching historical prices from CoinGecko...');
+  logger.log('[HistoricalData] Fetching historical prices from CoinGecko...');
   
   try {
     const response = await fetch(
@@ -93,11 +94,11 @@ export async function fetchHistoricalPrices(): Promise<HistoricalDataResult> {
     
     // Save to cache
     saveToCache(CACHE_KEY_PRICES, result);
-    console.log(`[HistoricalData] Fetched ${result.prices.length} daily prices`);
+    logger.log(`[HistoricalData] Fetched ${result.prices.length} daily prices`);
     
     return result;
   } catch (error) {
-    console.error('[HistoricalData] Error fetching historical prices:', error);
+    logger.error('[HistoricalData] Error fetching historical prices:', error);
     throw error;
   }
 }
@@ -110,11 +111,11 @@ export async function fetchOHLC(days: number = 90): Promise<CandleData[]> {
   // Check cache first
   const cached = getCachedData<CandleData[]>(cacheKey);
   if (cached) {
-    console.log('[HistoricalData] Using cached OHLC data');
+    logger.log('[HistoricalData] Using cached OHLC data');
     return cached;
   }
   
-  console.log(`[HistoricalData] Fetching OHLC data (${days} days) from CoinGecko...`);
+  logger.log(`[HistoricalData] Fetching OHLC data (${days} days) from CoinGecko...`);
   
   try {
     const response = await fetch(
@@ -140,11 +141,11 @@ export async function fetchOHLC(days: number = 90): Promise<CandleData[]> {
     
     // Save to cache
     saveToCache(cacheKey, candles);
-    console.log(`[HistoricalData] Fetched ${candles.length} OHLC candles`);
+    logger.log(`[HistoricalData] Fetched ${candles.length} OHLC candles`);
     
     return candles;
   } catch (error) {
-    console.error('[HistoricalData] Error fetching OHLC:', error);
+    logger.error('[HistoricalData] Error fetching OHLC:', error);
     throw error;
   }
 }
@@ -172,11 +173,11 @@ export async function fetchBinanceKlines(
   // Check cache first
   const cached = getCachedData<CandleData[]>(cacheKey);
   if (cached) {
-    console.log(`[HistoricalData] Using cached Binance ${interval} data`);
+    logger.log(`[HistoricalData] Using cached Binance ${interval} data`);
     return cached;
   }
   
-  console.log(`[HistoricalData] Fetching ${limit} ${interval} candles from Binance...`);
+  logger.log(`[HistoricalData] Fetching ${limit} ${interval} candles from Binance...`);
   
   try {
     const response = await fetch(
@@ -202,11 +203,11 @@ export async function fetchBinanceKlines(
     
     // Save to cache
     saveToCache(cacheKey, candles);
-    console.log(`[HistoricalData] Fetched ${candles.length} Binance candles`);
+    logger.log(`[HistoricalData] Fetched ${candles.length} Binance candles`);
     
     return candles;
   } catch (error) {
-    console.error('[HistoricalData] Error fetching Binance data:', error);
+    logger.error('[HistoricalData] Error fetching Binance data:', error);
     throw error;
   }
 }

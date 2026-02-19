@@ -1,8 +1,9 @@
 // ============================================================================
-// CÁLCULO DE TPS AJUSTADOS AL TIMEFRAME
+// CALCULO DE TPS AJUSTADOS AL TIMEFRAME
 // ============================================================================
 
 import { IntradayTimeframe } from '@/hooks/useIntradayData';
+import { logger } from '@/lib/logger';
 
 export interface TimeframeTPs {
   tp1Percent: number;
@@ -75,26 +76,26 @@ export interface CandleData {
  */
 function calculateATR(candles: CandleData[], period: number = 14): number {
   if (candles.length < period + 1) return 0;
-  
+
   const trueRanges: number[] = [];
-  
+
   for (let i = 1; i < candles.length; i++) {
     const current = candles[i];
     const previous = candles[i - 1];
-    
+
     const tr = Math.max(
       current.high - current.low,
       Math.abs(current.high - previous.close),
       Math.abs(current.low - previous.close)
     );
-    
+
     trueRanges.push(tr);
   }
-  
+
   // Promedio de los últimos 'period' valores
   const recentTRs = trueRanges.slice(-period);
   const atr = recentTRs.reduce((sum, tr) => sum + tr, 0) / period;
-  
+
   return atr;
 }
 
@@ -124,45 +125,36 @@ export function calculateIntradayTPs(
   timeframe: IntradayTimeframe,
   candles?: CandleData[]
 ): IntradayTPLevels {
-  console.log(`[IntradayTPs] Calculating for ${timeframe} ${direction}...`);
-  
+  logger.log(`[IntradayTPs] Calculating for ${timeframe} ${direction}...`);
+
   const config = TIMEFRAME_TP_CONFIG[timeframe];
-  
+
   // Si tenemos candles, ajustar con ATR
   let tp1Percent = config.tp1Percent;
   let tp2Percent = config.tp2Percent;
   let tp3Percent = config.tp3Percent;
   let slPercent = config.stopLossPercent;
   let basedOnATR = false;
-  
+
   if (candles && candles.length > 14) {
     const atr = calculateATR(candles);
     const atrPercent = (atr / entryPrice) * 100;
-    
-    console.log(`[IntradayTPs] ATR: ${atr.toFixed(2)} (${atrPercent.toFixed(3)}%)`);
-    
+
+    logger.log(`[IntradayTPs] ATR: ${atr.toFixed(2)} (${atrPercent.toFixed(3)}%)`);
+
     // Ajustar TPs basados en ATR solo si es significativo
-    // TP1 = 1x ATR, TP2 = 2x ATR, TP3 = 3x ATR
     if (atrPercent > 0.1) {
-      // Usar el máximo entre config base y ATR para no ser demasiado conservador
       tp1Percent = Math.max(config.tp1Percent, atrPercent * 1.0);
       tp2Percent = Math.max(config.tp2Percent, atrPercent * 2.0);
       tp3Percent = Math.max(config.tp3Percent, atrPercent * 3.0);
       slPercent = Math.max(config.stopLossPercent, atrPercent * 1.5);
       basedOnATR = true;
-      
-      console.log(`[IntradayTPs] Adjusted with ATR:`, {
-        tp1: tp1Percent.toFixed(2) + '%',
-        tp2: tp2Percent.toFixed(2) + '%',
-        tp3: tp3Percent.toFixed(2) + '%',
-        sl: slPercent.toFixed(2) + '%'
-      });
     }
   }
-  
+
   // Calcular precios según dirección
   let tp1: number, tp2: number, tp3: number, stopLoss: number;
-  
+
   if (direction === 'LONG') {
     tp1 = entryPrice * (1 + tp1Percent / 100);
     tp2 = entryPrice * (1 + tp2Percent / 100);
@@ -180,10 +172,10 @@ export function calculateIntradayTPs(
     tp3 = entryPrice * 1.015;
     stopLoss = entryPrice * 0.99;
   }
-  
+
   // Calcular R:R basado en TP2 (objetivo principal)
   const riskRewardRatio = tp2Percent / slPercent;
-  
+
   return {
     tp1: Math.round(tp1 * 100) / 100,
     tp2: Math.round(tp2 * 100) / 100,
@@ -208,16 +200,16 @@ export function validateTPsAgainstRange(
   direction: 'LONG' | 'SHORT'
 ): { valid: boolean; warnings: string[] } {
   const warnings: string[] = [];
-  
+
   if (candles.length < 20) {
     return { valid: true, warnings: [] };
   }
-  
+
   // Obtener rango de las últimas 20 velas
   const recent = candles.slice(-20);
   const highestHigh = Math.max(...recent.map(c => c.high));
   const lowestLow = Math.min(...recent.map(c => c.low));
-  
+
   if (direction === 'LONG') {
     if (tps.tp1 > highestHigh) {
       warnings.push('TP1 está por encima del máximo reciente');
@@ -239,7 +231,7 @@ export function validateTPsAgainstRange(
       warnings.push('TP3 probablemente inalcanzable en este timeframe');
     }
   }
-  
+
   return {
     valid: warnings.length === 0,
     warnings

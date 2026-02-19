@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchBinanceKlines, CandleData } from '@/lib/historicalData';
+import { logger } from '@/lib/logger';
 
 export interface HistoricalDataResult {
   prices: number[];
@@ -20,13 +21,13 @@ export function useHistoricalData(): UseHistoricalDataResult {
   const binanceQuery = useQuery({
     queryKey: ['binance-klines-1d'],
     queryFn: async () => {
-      console.log('[useHistoricalData] Fetching from Binance...');
+      logger.log('[useHistoricalData] Fetching from Binance...');
       try {
         const candles = await fetchBinanceKlines('BTCUSDT', '1d', 250);
-        console.log(`[useHistoricalData] ✅ Retrieved ${candles.length} candles from Binance`);
+        logger.log(`[useHistoricalData] ✅ Retrieved ${candles.length} candles from Binance`);
         return candles;
       } catch (error) {
-        console.error('[useHistoricalData] ❌ Error:', error);
+        logger.error('[useHistoricalData] ❌ Error:', error);
         throw error;
       }
     },

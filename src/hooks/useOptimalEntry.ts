@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { IntradayData } from './useIntradayData';
 import { SignalDirection } from './useIntradaySignal';
+import { logger } from '@/lib/logger';
 
 // ============================================================================
 // TYPES
@@ -50,7 +51,7 @@ export function useOptimalEntry(
       return null;
     }
 
-    console.log(`[useOptimalEntry] Calculating for ${direction}...`, {
+    logger.log(`[useOptimalEntry] Calculating for ${direction}...`, {
       currentPrice,
       ema9,
       ema21
@@ -58,12 +59,12 @@ export function useOptimalEntry(
 
     // Calculate distance from current price to EMA9
     const distanceToEMA9 = Math.abs((currentPrice - ema9) / currentPrice * 100);
-    
+
     // Threshold: if price is within 0.3% of EMA9, immediate entry is fine
     const OPTIMAL_THRESHOLD = 0.3;
 
     if (distanceToEMA9 < OPTIMAL_THRESHOLD) {
-      console.log(`[useOptimalEntry] Price close to EMA9 (${distanceToEMA9.toFixed(2)}%), immediate entry OK`);
+      logger.log(`[useOptimalEntry] Price close to EMA9 (${distanceToEMA9.toFixed(2)}%), immediate entry OK`);
       return {
         isOptimal: false,
         zone: { low: currentPrice, high: currentPrice },
@@ -105,21 +106,19 @@ export function useOptimalEntry(
     const stopLossPercent = 2.5; // Standard 2.5% SL
     const currentRisk = currentPrice * (stopLossPercent / 100);
     const optimalRisk = suggestedPrice * (stopLossPercent / 100);
-    
+
     // Calculate the improvement in R:R
-    const riskImprovement = direction === 'LONG' 
+    const riskImprovement = direction === 'LONG'
       ? (currentPrice - suggestedPrice) / optimalRisk
       : (suggestedPrice - currentPrice) / optimalRisk;
-    
+
     const improvedRR = currentRR + riskImprovement;
     const advantagePercent = ((improvedRR - currentRR) / currentRR) * 100;
 
-    console.log(`[useOptimalEntry] ✅ Optimal zone calculated:`, {
+    logger.log(`[useOptimalEntry] Optimal zone calculated:`, {
       zone: `${zoneLow.toFixed(0)} - ${zoneHigh.toFixed(0)}`,
       suggestedPrice: suggestedPrice.toFixed(0),
       distancePercent: `${distancePercent.toFixed(2)}%`,
-      currentRR: `1:${currentRR.toFixed(1)}`,
-      optimalRR: `1:${improvedRR.toFixed(1)}`,
       advantage: `+${advantagePercent.toFixed(0)}%`
     });
 

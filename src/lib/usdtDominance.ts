@@ -3,6 +3,8 @@
 // Usando Binance API (sin CORS issues)
 // ============================================
 
+import { logger } from '@/lib/logger';
+
 // ============================================
 // Debug System
 // ============================================
@@ -10,7 +12,7 @@ const DEBUG = true;
 
 function debugLog(message: string, data?: unknown) {
   if (DEBUG) {
-    console.log(`[USDT Dominance] ${message}`, data ?? '');
+    logger.log(`[USDT Dominance] ${message}`, data ?? '');
   }
 }
 
@@ -200,7 +202,7 @@ function getExtendedHistory(): HistoryEntry[] {
     const stored = localStorage.getItem(EXTENDED_STORAGE_KEY);
     return stored ? JSON.parse(stored) : [];
   } catch (error) {
-    console.error('Error loading USDT dominance history:', error);
+    logger.error('Error loading USDT dominance history:', error);
     return [];
   }
 }
@@ -227,7 +229,7 @@ function saveToExtendedHistory(dominance: number, btcPrice?: number): void {
     
     localStorage.setItem(EXTENDED_STORAGE_KEY, JSON.stringify(trimmed));
   } catch (error) {
-    console.error('Error saving USDT dominance history:', error);
+    logger.error('Error saving USDT dominance history:', error);
   }
 }
 
@@ -327,7 +329,7 @@ function saveLastValidData(data: USDTDominanceData): void {
   try {
     localStorage.setItem(LAST_VALID_DATA_KEY, JSON.stringify(data));
   } catch (error) {
-    console.error('Error saving last valid USDT data:', error);
+    logger.error('Error saving last valid USDT data:', error);
   }
 }
 
@@ -344,7 +346,7 @@ export function getLastValidData(): USDTDominanceData | null {
     }
     return null;
   } catch (error) {
-    console.error('Error loading last valid USDT data:', error);
+    logger.error('Error loading last valid USDT data:', error);
     return null;
   }
 }

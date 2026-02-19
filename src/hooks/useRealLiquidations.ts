@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { 
-  fetchLiquidationHistory, 
+import {
+  fetchLiquidationHistory,
   fetchLongShortRatio,
   clusterLiquidations,
   findNearbyZones,
@@ -9,6 +9,7 @@ import {
   type CoinglassLiquidationData
 } from '@/lib/coinglass';
 import type { IntradayAsset } from '@/hooks/useIntradayData';
+import { logger } from '@/lib/logger';
 
 const ASSET_MAP: Record<IntradayAsset, string> = {
   BTC: 'BTC',
@@ -24,37 +25,37 @@ export function useRealLiquidations(
   return useQuery<CoinglassLiquidationData | null>({
     queryKey: ['real-liquidations', asset],
     queryFn: async () => {
-      console.log('[useRealLiquidations] Fetching for', asset, 'at price', currentPrice);
-      
+      logger.log('[useRealLiquidations] Fetching for', asset, 'at price', currentPrice);
+
       const symbol = ASSET_MAP[asset];
-      
+
       try {
         // 1. Fetch historical liquidations (24h window)
         const [liquidations, longShortRatio] = await Promise.all([
           fetchLiquidationHistory(symbol, '24h'),
           fetchLongShortRatio(symbol).catch(() => null)
         ]);
-        
+
         if (!liquidations || liquidations.length === 0) {
-          console.warn('[useRealLiquidations] No liquidation data returned');
+          logger.warn('[useRealLiquidations] No liquidation data returned');
           return null;
         }
-        
+
         // 2. Cluster liquidations by price ranges ($100 step for BTC, adjust for others)
         const priceStep = asset === 'BTC' ? 100 : asset === 'ETH' ? 10 : 1;
         const clusters = clusterLiquidations(liquidations, priceStep);
-        
+
         // 3. Find zones near current price
         const { above, below, critical } = findNearbyZones(clusters, currentPrice, 5);
-        
-        console.log('[useRealLiquidations] ✅ Processed:', {
+
+        logger.log('[useRealLiquidations] Processed:', {
           totalLiquidations: liquidations.length,
           totalClusters: clusters.length,
           nearbyAbove: above.length,
           nearbyBelow: below.length,
           criticalZone: critical ? `$${critical.priceRange.avg.toFixed(0)}` : 'none'
         });
-        
+
         return {
           liquidations,
           clusters,
@@ -64,9 +65,9 @@ export function useRealLiquidations(
           longShortRatio,
           timestamp: Date.now()
         };
-        
+
       } catch (error) {
-        console.error('[useRealLiquidations] Error:', error);
+        logger.error('[useRealLiquidations] Error:', error);
         throw error;
       }
     },
@@ -87,12 +88,12 @@ export function useSmartStopLoss(
   direction: 'LONG' | 'SHORT' | 'NEUTRAL'
 ) {
   const { data, isLoading, error } = useRealLiquidations(asset, currentPrice, direction);
-  
+
   if (!data || direction === 'NEUTRAL') {
     return { smartSL: null, isLoading, error };
   }
-  
+
   const smartSL = calculateSmartSL(direction, currentPrice, data.clusters);
-  
+
   return { smartSL, isLoading, error };
 }

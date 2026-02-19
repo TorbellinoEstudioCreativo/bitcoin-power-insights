@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { logger } from '@/lib/logger';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -87,7 +88,7 @@ export function PositionManager({
         });
       }
     } catch (e) {
-      console.warn('[PositionManager] Error loading saved position:', e);
+      logger.warn('[PositionManager] Error loading saved position:', e);
     }
   }, []);
   

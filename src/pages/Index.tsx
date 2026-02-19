@@ -108,7 +108,7 @@ const Index = () => {
           </div>
         ) : (
           <div className="flex-1 overflow-auto">
-            <IntradayView />
+            <IntradayView enabled={activeTab === 'intraday'} />
           </div>
         )}
       </div>

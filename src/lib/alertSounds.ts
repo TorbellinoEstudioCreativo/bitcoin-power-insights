@@ -3,6 +3,8 @@
  * Generates different beep patterns for different alert types
  */
 
+import { logger } from '@/lib/logger';
+
 type SoundType = 'success' | 'warning' | 'danger';
 
 let audioContext: AudioContext | null = null;
@@ -67,7 +69,7 @@ export async function playAlertSound(type: SoundType): Promise<void> {
         break;
     }
   } catch (error) {
-    console.error('Error playing alert sound:', error);
+    logger.error('Error playing alert sound:', error);
   }
 }
 

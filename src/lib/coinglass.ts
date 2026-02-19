@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
 
 // ============================================================================
 // CONFIGURATION
@@ -69,23 +70,23 @@ export interface CoinglassLiquidationData {
 async function callCoinglassProxy(endpoint: string, params: Record<string, string | number>) {
   // Skip API calls when Coinglass is disabled
   if (!COINGLASS_ENABLED) {
-    console.debug('[Coinglass] Disabled - skipping API call');
+    logger.debug('[Coinglass] Disabled - skipping API call');
     return null;
   }
   
-  console.debug('[Coinglass] Calling proxy:', endpoint, params);
+  logger.debug('[Coinglass] Calling proxy:', endpoint, params);
   
   const { data, error } = await supabase.functions.invoke('coinglass-proxy', {
     body: { endpoint, params }
   });
   
   if (error) {
-    console.debug('[Coinglass] Proxy error:', error);
+    logger.debug('[Coinglass] Proxy error:', error);
     throw new Error(`Coinglass proxy error: ${error.message}`);
   }
   
   if (data?.error) {
-    console.debug('[Coinglass] API error:', data.error, data.message);
+    logger.debug('[Coinglass] API error:', data.error, data.message);
     throw new Error(`Coinglass API error: ${data.message || data.error}`);
   }
   
@@ -104,7 +105,7 @@ export async function fetchLiquidationHistory(
     return [];
   }
   
-  console.debug('[Coinglass] Fetching liquidation history for', symbol, timeType);
+  logger.debug('[Coinglass] Fetching liquidation history for', symbol, timeType);
   
   try {
     // v3 API uses different endpoint and parameters
@@ -166,11 +167,11 @@ export async function fetchLiquidationHistory(
       });
     }
     
-    console.debug('[Coinglass] ✅ Retrieved', liquidations.length, 'liquidation events');
+    logger.debug('[Coinglass] ✅ Retrieved', liquidations.length, 'liquidation events');
     return liquidations;
     
   } catch (error) {
-    console.debug('[Coinglass] Liquidation history unavailable:', error);
+    logger.debug('[Coinglass] Liquidation history unavailable:', error);
     return [];
   }
 }
@@ -184,7 +185,7 @@ export async function fetchLongShortRatio(symbol: string): Promise<LongShortRati
     return null;
   }
   
-  console.debug('[Coinglass] Fetching long/short ratio for', symbol);
+  logger.debug('[Coinglass] Fetching long/short ratio for', symbol);
   
   try {
     // v3 uses different endpoint path
@@ -238,11 +239,11 @@ export async function fetchLongShortRatio(symbol: string): Promise<LongShortRati
       exchanges
     };
     
-    console.debug('[Coinglass] ✅ Long/Short:', `${avgLong.toFixed(1)}% / ${avgShort.toFixed(1)}%`);
+    logger.debug('[Coinglass] ✅ Long/Short:', `${avgLong.toFixed(1)}% / ${avgShort.toFixed(1)}%`);
     return ratio;
     
   } catch (error) {
-    console.debug('[Coinglass] Long/short ratio unavailable:', error);
+    logger.debug('[Coinglass] Long/short ratio unavailable:', error);
     return null;
   }
 }

@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { useBinanceWebSocket } from './useBinanceWebSocket';
+import { logger } from '@/lib/logger';
 
 export interface BitcoinPriceData {
   price: number;
@@ -16,16 +18,16 @@ function getCachedPrice(): BitcoinPriceData | null {
   try {
     const cached = localStorage.getItem(CACHE_KEY);
     if (!cached) return null;
-    
+
     const parsed = JSON.parse(cached);
     const age = Date.now() - parsed.timestamp;
-    
+
     if (age > CACHE_DURATION) {
       localStorage.removeItem(CACHE_KEY);
       return null;
     }
-    
-    console.log(`[useBitcoinPrice] Using cached price (age: ${Math.round(age / 1000 / 60)} min)`);
+
+    logger.log(`[useBitcoinPrice] Using cached price (age: ${Math.round(age / 1000 / 60)} min)`);
     return parsed.data;
   } catch {
     return null;
@@ -44,45 +46,45 @@ function setCachedPrice(data: BitcoinPriceData): void {
 }
 
 async function fetchBitcoinPrice(): Promise<BitcoinPriceData> {
-  console.log('[useBitcoinPrice] Fetching from Binance...');
-  
+  logger.log('[useBitcoinPrice] Fetching from Binance HTTP...');
+
   try {
     const url = `${BINANCE_API}/api/v3/ticker/24hr?symbol=BTCUSDT`;
     const response = await fetch(url);
-    
+
     if (!response.ok) {
       throw new Error(`Binance API error: ${response.status}`);
     }
-    
+
     const data = await response.json();
-    
+
     const result: BitcoinPriceData = {
       price: parseFloat(data.lastPrice),
       change24h: parseFloat(data.priceChangePercent),
       isLive: true
     };
-    
-    console.log('[useBitcoinPrice] ✅ Success:', {
+
+    logger.log('[useBitcoinPrice] HTTP Success:', {
       price: result.price.toFixed(2),
       change24h: `${result.change24h?.toFixed(2)}%`
     });
-    
+
     // Cache successful result
     setCachedPrice(result);
-    
+
     return result;
   } catch (error) {
-    console.error('[useBitcoinPrice] ❌ Error:', error);
-    
+    logger.error('[useBitcoinPrice] HTTP Error:', error);
+
     // Try cache fallback
     const cached = getCachedPrice();
     if (cached) {
-      console.log('[useBitcoinPrice] ⚠️ Using cached data');
+      logger.log('[useBitcoinPrice] Using cached data');
       return { ...cached, isLive: false };
     }
-    
+
     // Last resort fallback
-    console.log('[useBitcoinPrice] ⚠️ Using fallback price');
+    logger.log('[useBitcoinPrice] Using fallback price');
     return {
       price: FALLBACK_PRICE,
       change24h: null,
@@ -92,11 +94,15 @@ async function fetchBitcoinPrice(): Promise<BitcoinPriceData> {
 }
 
 export function useBitcoinPrice() {
-  return useQuery({
+  // WebSocket for real-time updates (<1s latency)
+  const { data: wsData, isConnected: wsConnected } = useBinanceWebSocket('btcusdt');
+
+  // HTTP polling as fallback (only when WebSocket is down)
+  const httpQuery = useQuery({
     queryKey: ['bitcoin-price'],
     queryFn: fetchBitcoinPrice,
-    staleTime: 30 * 1000,        // Fresh for 30 seconds
-    refetchInterval: 30 * 1000,  // Refetch every 30 seconds
+    staleTime: 30_000,
+    refetchInterval: wsConnected ? false : 30_000, // Disable polling when WS is active
     retry: 2,
     placeholderData: {
       price: FALLBACK_PRICE,
@@ -104,4 +110,18 @@ export function useBitcoinPrice() {
       isLive: false
     },
   });
+
+  // Prefer WebSocket data when available
+  if (wsData && wsConnected) {
+    return {
+      ...httpQuery,
+      data: {
+        price: wsData.price,
+        change24h: wsData.change24h,
+        isLive: true,
+      } as BitcoinPriceData,
+    };
+  }
+
+  return httpQuery;
 }

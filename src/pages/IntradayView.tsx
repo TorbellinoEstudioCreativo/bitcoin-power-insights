@@ -14,7 +14,11 @@ import { TradingLevels } from '@/components/intraday/TradingLevels';
 import { IntradayRecommendation } from '@/components/intraday/IntradayRecommendation';
 import { TradeRecommender } from '@/components/intraday/TradeRecommender';
 
-export function IntradayView() {
+interface IntradayViewProps {
+  enabled?: boolean;
+}
+
+export function IntradayView({ enabled = true }: IntradayViewProps) {
   const [selectedAsset, setSelectedAsset] = useState<IntradayAsset>('BTC');
   const [timeframe, setTimeframe] = useState<IntradayTimeframe>('15m');
 
@@ -81,7 +85,7 @@ export function IntradayView() {
   );
   
   // All signals for Trade Recommender
-  const { topSignals, isLoading: isLoadingAllSignals, getTradeSetup } = useAllSignals();
+  const { topSignals, isLoading: isLoadingAllSignals, getTradeSetup } = useAllSignals(enabled);
 
   const isLoading = isLoadingIntraday || isLoadingDerivatives;
 

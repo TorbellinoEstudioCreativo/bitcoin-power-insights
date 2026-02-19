@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { logger } from '@/lib/logger';
 import { TrendingUp, TrendingDown, Minus, Activity, Target, Zap } from 'lucide-react';
 import {
   AreaChart,
@@ -286,13 +287,13 @@ function prepareChartData() {
     try {
       history = JSON.parse(historyStr);
     } catch (parseError) {
-      console.error('Invalid JSON in USDT history:', parseError);
+      logger.error('Invalid JSON in USDT history:', parseError);
       return [];
     }
     
     // Validar que sea un array
     if (!Array.isArray(history)) {
-      console.error('USDT history is not an array:', typeof history);
+      logger.error('USDT history is not an array:', typeof history);
       return [];
     }
     
@@ -321,7 +322,7 @@ function prepareChartData() {
         
         // Validar que la fecha sea válida
         if (isNaN(date.getTime())) {
-          console.warn('Invalid timestamp:', entry.timestamp);
+          logger.warn('Invalid timestamp:', entry.timestamp);
           return;
         }
         
@@ -334,7 +335,7 @@ function prepareChartData() {
         }
         buckets[key].push(entry.dominance);
       } catch (entryError) {
-        console.warn('Error processing entry:', entry, entryError);
+        logger.warn('Error processing entry:', entry, entryError);
       }
     });
     
@@ -364,7 +365,7 @@ function prepareChartData() {
       };
     });
   } catch (error) {
-    console.error('Critical error in prepareChartData:', error);
+    logger.error('Critical error in prepareChartData:', error);
     return [];
   }
 }

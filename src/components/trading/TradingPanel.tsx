@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { logger } from "@/lib/logger";
 import { Card } from "./Card";
 import { BuyOrdersPanel } from "./BuyOrdersPanel";
 import { SellOrdersPanel } from "./SellOrdersPanel";
@@ -22,7 +23,7 @@ function loadTradingInputs(): TradingInputs {
       return JSON.parse(stored);
     }
   } catch (e) {
-    console.error('Error loading trading inputs:', e);
+    logger.error('Error loading trading inputs:', e);
   }
   return {
     apalancamiento: 3,
@@ -36,7 +37,7 @@ function saveTradingInputs(inputs: TradingInputs): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(inputs));
   } catch (e) {
-    console.error('Error saving trading inputs:', e);
+    logger.error('Error saving trading inputs:', e);
   }
 }
 

@@ -1,10 +1,11 @@
-import type { 
-  OpenPosition, 
-  PositionAnalysis, 
-  TacticalAction 
+import type {
+  OpenPosition,
+  PositionAnalysis,
+  TacticalAction
 } from './tradeRecommender';
 import type { IntradaySignal, SignalDirection } from '@/hooks/useIntradaySignal';
 import type { LiquidationData } from '@/hooks/useLiquidationPools';
+import { logger } from '@/lib/logger';
 
 // ============================================================================
 // LIQUIDATION CALCULATION
@@ -55,10 +56,10 @@ export function analyzeOpenPosition(
   liquidationData: LiquidationData | null,
   volatility: number
 ): PositionAnalysis | null {
-  console.log('[PositionManager] Analyzing position:', position);
+  logger.log('[PositionManager] Analyzing position:', position);
   
   if (!currentSignal) {
-    console.warn('[PositionManager] Missing signal data');
+    logger.warn('[PositionManager] Missing signal data');
     return null;
   }
 

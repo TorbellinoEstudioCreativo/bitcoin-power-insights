@@ -7,6 +7,7 @@
 
 import { IntradayTimeframe, IntradayCandle } from '@/hooks/useIntradayData';
 import { DerivativesData } from '@/lib/derivatives';
+import { logger } from '@/lib/logger';
 
 // ============================================================================
 // TYPES
@@ -102,7 +103,7 @@ export function calculateATRFromCandles(
   period: number = 14
 ): number | null {
   if (!candles || candles.length < period + 1) {
-    console.log(`[ATR] Insufficient candles: ${candles?.length ?? 0} < ${period + 1}`);
+    logger.log(`[ATR] Insufficient candles: ${candles?.length ?? 0} < ${period + 1}`);
     return null;
   }
 
@@ -221,7 +222,7 @@ export function calculateIntelligentZones(
   const config = TIMEFRAME_LIQUIDATION_CONFIG[timeframe];
   const reasonParts: string[] = [];
 
-  console.log(`[LiquidationCalc] Starting calculation for ${asset} ${timeframe} @ $${currentPrice.toFixed(2)}`);
+  logger.log(`[LiquidationCalc] Starting calculation for ${asset} ${timeframe} @ $${currentPrice.toFixed(2)}`);
 
   // Step 1: Calculate ATR if candles available
   let atrValue: number | null = null;
@@ -234,7 +235,7 @@ export function calculateIntelligentZones(
       const atrPercent = (atrValue / currentPrice) * 100;
       atrBasedDistance = atrPercent * config.atrMultiplier;
       reasonParts.push(`ATR: ${atrPercent.toFixed(2)}%`);
-      console.log(`[LiquidationCalc] ATR calculated: $${atrValue.toFixed(2)} (${atrPercent.toFixed(2)}%)`);
+      logger.log(`[LiquidationCalc] ATR calculated: $${atrValue.toFixed(2)} (${atrPercent.toFixed(2)}%)`);
     }
   }
 
@@ -253,13 +254,13 @@ export function calculateIntelligentZones(
     // Use ATR-based calculation
     finalDistance = atrBasedDistance * derivativesMultiplier;
     method = 'atr_volatility';
-    console.log(`[LiquidationCalc] Using ATR method: ${atrBasedDistance.toFixed(2)}% * ${derivativesMultiplier.toFixed(2)} = ${finalDistance.toFixed(2)}%`);
+    logger.log(`[LiquidationCalc] Using ATR method: ${atrBasedDistance.toFixed(2)}% * ${derivativesMultiplier.toFixed(2)} = ${finalDistance.toFixed(2)}%`);
   } else {
     // Fallback to volatility-adjusted base distance
     finalDistance = config.baseDistancePercent * (1 + volatility * 0.1) * derivativesMultiplier;
     method = 'fallback_fixed';
     reasonParts.push('Fallback: volatilidad');
-    console.log(`[LiquidationCalc] Using fallback method: ${config.baseDistancePercent}% * vol adj = ${finalDistance.toFixed(2)}%`);
+    logger.log(`[LiquidationCalc] Using fallback method: ${config.baseDistancePercent}% * vol adj = ${finalDistance.toFixed(2)}%`);
   }
 
   // Ensure minimum and maximum bounds
@@ -311,7 +312,7 @@ export function calculateIntelligentZones(
     volatilityMultiplier: derivativesMultiplier
   };
 
-  console.log(`[LiquidationCalc] ✅ Result:`, {
+  logger.log(`[LiquidationCalc] ✅ Result:`, {
     method,
     heatLevel,
     longPool: `$${longLiquidationPrice.toFixed(0)} (-${finalDistance.toFixed(1)}%)`,
