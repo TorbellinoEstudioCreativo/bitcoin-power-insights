@@ -29,7 +29,7 @@ export function Footer() {
 
       {/* Footer Info */}
       <div className="px-6 py-3 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-muted-foreground">
-        <span>Bitcoin Insights • Basado en el modelo Power Law de Giovanni Santostasi</span>
+        <span>Trader Legendario • Basado en el modelo Power Law de Giovanni Santostasi</span>
         <span>Datos actualizados: {new Date().toLocaleDateString('es-MX')}</span>
       </div>
     </footer>

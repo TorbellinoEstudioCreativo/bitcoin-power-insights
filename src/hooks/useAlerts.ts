@@ -83,7 +83,7 @@ function getNotificationMessage(alert: Alert): string {
 
 function sendBrowserNotification(alert: Alert): void {
   if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification('Bitcoin Power Law Analyzer', {
+    new Notification('Trader Legendario', {
       body: getNotificationMessage(alert),
       icon: '/favicon.ico',
       tag: alert.id,

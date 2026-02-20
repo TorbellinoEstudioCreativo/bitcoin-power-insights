@@ -4,8 +4,8 @@ export const translations = {
   es: {
     // Header
     header: {
-      title: 'Bitcoin Power Law Analyzer',
-      titleIntraday: 'Bitcoin Power Insights',
+      title: 'Trader Legendario',
+      titleIntraday: 'Trader Legendario',
       subtitle: 'Modelo de Giovanni Santostasi',
       subtitleIntraday: 'Trading Intradía Inteligente',
       infoAriaLabel: 'Información sobre el modelo',
@@ -213,17 +213,26 @@ export const translations = {
       testSound: 'Probar Sonido',
     },
     
+    // Auth
+    auth: {
+      title: 'Trader Legendario',
+      subtitle: 'Acceso restringido',
+      placeholder: 'Contraseña',
+      button: 'Entrar',
+      error: 'Contraseña incorrecta. Intenta de nuevo.',
+    },
+
     // Time formatting
     time: {
       ago: 'hace',
     },
   },
-  
+
   en: {
     // Header
     header: {
-      title: 'Bitcoin Power Law Analyzer',
-      titleIntraday: 'Bitcoin Power Insights',
+      title: 'Legendary Trader',
+      titleIntraday: 'Legendary Trader',
       subtitle: "Giovanni Santostasi's Model",
       subtitleIntraday: 'Smart Intraday Trading',
       infoAriaLabel: 'Model information',
@@ -431,6 +440,15 @@ export const translations = {
       testSound: 'Test Sound',
     },
     
+    // Auth
+    auth: {
+      title: 'Legendary Trader',
+      subtitle: 'Restricted access',
+      placeholder: 'Password',
+      button: 'Enter',
+      error: 'Wrong password. Try again.',
+    },
+
     // Time formatting
     time: {
       ago: 'ago',
