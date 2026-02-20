@@ -9,6 +9,7 @@ export const translations = {
       subtitle: 'Modelo de Giovanni Santostasi',
       subtitleIntraday: 'Trading Intradía Inteligente',
       infoAriaLabel: 'Información sobre el modelo',
+      liveMarket: 'En Vivo',
     },
     
     // Portfolio
@@ -216,10 +217,16 @@ export const translations = {
     // Auth
     auth: {
       title: 'Trader Legendario',
-      subtitle: 'Acceso restringido',
-      placeholder: 'Contraseña',
-      button: 'Entrar',
-      error: 'Contraseña incorrecta. Intenta de nuevo.',
+      tagline: 'Terminal de Trading de Alta Frecuencia',
+      badge: 'Acceso Restringido',
+      sessionTitle: 'Inicializar Sesión',
+      sessionSubtitle: 'Ingresa tu clave de acceso única para continuar.',
+      inputLabel: 'Clave de Terminal',
+      button: 'Entrar al Sistema',
+      error: 'Clave de acceso incorrecta. Intenta de nuevo.',
+      encrypted: 'Conexión encriptada establecida (AES-256)',
+      unauthorized: 'Los intentos de acceso no autorizados son registrados',
+      copyright: '© 2025 Trader Legendario Sistemas Propietarios',
     },
 
     // Time formatting
@@ -236,6 +243,7 @@ export const translations = {
       subtitle: "Giovanni Santostasi's Model",
       subtitleIntraday: 'Smart Intraday Trading',
       infoAriaLabel: 'Model information',
+      liveMarket: 'Live Market',
     },
     
     // Portfolio
@@ -442,11 +450,17 @@ export const translations = {
     
     // Auth
     auth: {
-      title: 'Legendary Trader',
-      subtitle: 'Restricted access',
-      placeholder: 'Password',
-      button: 'Enter',
-      error: 'Wrong password. Try again.',
+      title: 'Trader Legendario',
+      tagline: 'High-Frequency Trading Terminal',
+      badge: 'Restricted Access',
+      sessionTitle: 'Initialize Session',
+      sessionSubtitle: 'Enter your unique access key to continue.',
+      inputLabel: 'Terminal Key',
+      button: 'Enter System',
+      error: 'Wrong access key. Try again.',
+      encrypted: 'Encrypted connection established (AES-256)',
+      unauthorized: 'Unauthorized access attempts are logged and reported',
+      copyright: '© 2025 Trader Legendario Proprietary Systems',
     },
 
     // Time formatting
