@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Bitcoin Power Law Analyzer - Trading Terminal Theme */
+/* Trader Legendario - Trading Terminal Theme */
 
 @layer base {
   :root {
@@ -16,8 +16,8 @@
     --popover: 217 33% 17%;
     --popover-foreground: 210 40% 96%;
 
-    --primary: 199 89% 48%;
-    --primary-foreground: 222 47% 11%;
+    --primary: 100 95% 50%;
+    --primary-foreground: 0 0% 4%;
 
     --secondary: 215 28% 17%;
     --secondary-foreground: 210 40% 96%;
@@ -33,7 +33,7 @@
 
     --border: 215 28% 25%;
     --input: 215 28% 17%;
-    --ring: 199 89% 48%;
+    --ring: 100 95% 50%;
 
     --radius: 0.75rem;
 
@@ -44,8 +44,8 @@
     --warning-foreground: 45 93% 90%;
     --danger: 0 84% 60%;
     --danger-foreground: 0 84% 90%;
-    --info: 217 91% 60%;
-    --info-foreground: 217 91% 90%;
+    --info: 100 85% 45%;
+    --info-foreground: 100 85% 90%;
     --bitcoin: 25 95% 53%;
     --bitcoin-foreground: 25 95% 90%;
     --model: 217 91% 60%;
@@ -54,12 +54,12 @@
     /* Sidebar */
     --sidebar-background: 217 33% 17%;
     --sidebar-foreground: 210 40% 96%;
-    --sidebar-primary: 199 89% 48%;
-    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-primary: 100 95% 50%;
+    --sidebar-primary-foreground: 0 0% 4%;
     --sidebar-accent: 215 28% 22%;
     --sidebar-accent-foreground: 210 40% 96%;
     --sidebar-border: 215 28% 25%;
-    --sidebar-ring: 199 89% 48%;
+    --sidebar-ring: 100 95% 50%;
   }
 
   /* Light theme */
@@ -73,7 +73,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 199 89% 40%;
+    --primary: 100 95% 35%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96%;
@@ -90,7 +90,7 @@
 
     --border: 214 32% 85%;
     --input: 214 32% 91%;
-    --ring: 199 89% 48%;
+    --ring: 100 95% 35%;
 
     /* Semantic colors for trading - light mode */
     --success: 142 71% 35%;
@@ -99,8 +99,8 @@
     --warning-foreground: 45 93% 15%;
     --danger: 0 84% 50%;
     --danger-foreground: 0 0% 100%;
-    --info: 217 91% 50%;
-    --info-foreground: 217 91% 15%;
+    --info: 100 85% 35%;
+    --info-foreground: 100 85% 15%;
     --bitcoin: 25 95% 45%;
     --bitcoin-foreground: 25 95% 15%;
     --model: 217 91% 50%;
@@ -109,12 +109,12 @@
     /* Sidebar */
     --sidebar-background: 210 40% 98%;
     --sidebar-foreground: 222 47% 11%;
-    --sidebar-primary: 199 89% 40%;
+    --sidebar-primary: 100 95% 35%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 210 40% 93%;
     --sidebar-accent-foreground: 222 47% 11%;
     --sidebar-border: 214 32% 85%;
-    --sidebar-ring: 199 89% 48%;
+    --sidebar-ring: 100 95% 35%;
   }
 
   .dark {
@@ -127,8 +127,8 @@
     --popover: 217 33% 17%;
     --popover-foreground: 210 40% 96%;
 
-    --primary: 199 89% 48%;
-    --primary-foreground: 222 47% 11%;
+    --primary: 100 95% 50%;
+    --primary-foreground: 0 0% 4%;
 
     --secondary: 215 28% 17%;
     --secondary-foreground: 210 40% 96%;
@@ -144,16 +144,16 @@
 
     --border: 215 28% 25%;
     --input: 215 28% 17%;
-    --ring: 199 89% 48%;
+    --ring: 100 95% 50%;
 
     --sidebar-background: 217 33% 17%;
     --sidebar-foreground: 210 40% 96%;
-    --sidebar-primary: 199 89% 48%;
-    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-primary: 100 95% 50%;
+    --sidebar-primary-foreground: 0 0% 4%;
     --sidebar-accent: 215 28% 22%;
     --sidebar-accent-foreground: 210 40% 96%;
     --sidebar-border: 215 28% 25%;
-    --sidebar-ring: 199 89% 48%;
+    --sidebar-ring: 100 95% 50%;
   }
 }
 
