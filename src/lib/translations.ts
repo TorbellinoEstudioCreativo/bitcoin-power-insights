@@ -212,6 +212,7 @@ export const translations = {
       themeLight: 'Claro',
       themeDark: 'Oscuro',
       testSound: 'Probar Sonido',
+      logout: 'Cerrar Sesión',
     },
     
     // Auth
@@ -446,6 +447,7 @@ export const translations = {
       themeLight: 'Light',
       themeDark: 'Dark',
       testSound: 'Test Sound',
+      logout: 'Log Out',
     },
     
     // Auth

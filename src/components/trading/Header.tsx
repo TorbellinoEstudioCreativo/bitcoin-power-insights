@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings, TrendingUp, Info, Sun, Moon, Volume2 } from "lucide-react";
+import { Settings, TrendingUp, Info, Sun, Moon, Volume2, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PowerLawInfoModal } from "./PowerLawInfoModal";
 import { AlertsManager } from "./AlertsManager";
@@ -161,6 +161,20 @@ export function Header({
               <DropdownMenuItem onClick={() => playAlertSound('success')}>
                 <Volume2 className="w-4 h-4 mr-2" />
                 {t('settings', 'testSound')}
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              {/* Logout */}
+              <DropdownMenuItem
+                onClick={() => {
+                  sessionStorage.removeItem('authenticated');
+                  window.location.reload();
+                }}
+                className="text-destructive focus:text-destructive"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                {t('settings', 'logout')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
