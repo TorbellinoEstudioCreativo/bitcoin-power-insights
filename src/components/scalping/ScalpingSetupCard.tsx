@@ -1,8 +1,12 @@
-import { TrendingUp, TrendingDown, Target, ShieldAlert, Timer } from 'lucide-react';
+import { TrendingUp, TrendingDown, Target, ShieldAlert, Timer, AlertTriangle, Crosshair } from 'lucide-react';
 import type { ScalpingSignal } from '@/lib/scalpingEngine';
+import { cn } from '@/lib/utils';
 
 interface ScalpingSetupCardProps {
   signal: ScalpingSignal;
+  isStale?: boolean;
+  onTakeSignal?: () => void;
+  canTakeSignal?: boolean;
 }
 
 function formatPrice(price: number): string {
@@ -10,7 +14,7 @@ function formatPrice(price: number): string {
   return price.toFixed(4);
 }
 
-export function ScalpingSetupCard({ signal }: ScalpingSetupCardProps) {
+export function ScalpingSetupCard({ signal, isStale, onTakeSignal, canTakeSignal }: ScalpingSetupCardProps) {
   if (!signal.criticalPass || !signal.direction) {
     return (
       <div className="border border-border rounded-xl p-6 bg-card">
@@ -33,6 +37,16 @@ export function ScalpingSetupCard({ signal }: ScalpingSetupCardProps) {
 
   return (
     <div className={`border-2 ${borderColor} rounded-xl p-5 ${bgGlow} space-y-4 transition-all`}>
+      {/* Stale Banner */}
+      {isStale && (
+        <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2.5">
+          <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0" />
+          <span className="text-xs text-yellow-400 font-medium">
+            Señal capturada — los datos han cambiado
+          </span>
+        </div>
+      )}
+
       {/* Header: Direction + Asset + TF */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -122,6 +136,22 @@ export function ScalpingSetupCard({ signal }: ScalpingSetupCardProps) {
           <div className="text-xs text-muted-foreground">Cerrar si no ejecuta</div>
         </div>
       </div>
+
+      {/* Take Signal Button */}
+      {canTakeSignal && onTakeSignal && (
+        <button
+          onClick={onTakeSignal}
+          className={cn(
+            'w-full flex items-center justify-center gap-2 py-3 rounded-lg font-bold text-sm transition-all',
+            isLong
+              ? 'bg-green-500 hover:bg-green-600 text-white'
+              : 'bg-red-500 hover:bg-red-600 text-white'
+          )}
+        >
+          <Crosshair className="w-4 h-4" />
+          Tomar Señal — {signal.direction} {signal.asset}
+        </button>
+      )}
     </div>
   );
 }
